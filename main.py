@@ -53,6 +53,14 @@ def processcommand(c):
         webbrowser.open('https://web.whatsapp.com')
     elif 'open instagram' in c.lower():
         webbrowser.open('https://instagram.com')
+    elif 'open twitter' in c.lower():
+        webbrowser.open('https://twitter.com')
+    elif 'open gmail' in c.lower():
+        webbrowser.open('https://mail.google.com')
+    elif 'open github' in c.lower():
+        webbrowser.open('https://github.com')
+    elif 'open reddit' in c.lower():
+        webbrowser.open('https://reddit.com')
     elif 'open youtube' in c.lower():
         webbrowser.open('https://youtube.com')
     elif (c.lower().startswith('play')):
