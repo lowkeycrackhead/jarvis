@@ -60,7 +60,7 @@ def processcommand(c):
     elif 'open github' in c.lower():
         webbrowser.open('https://github.com')
     elif 'open reddit' in c.lower():
-        webbrowser.open('https://reddit.com')
+          webbrowser.open('https://reddit.com') 
     elif 'open youtube' in c.lower():
         webbrowser.open('https://youtube.com')
     elif (c.lower().startswith('play')):
