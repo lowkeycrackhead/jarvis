@@ -1,13 +1,12 @@
 import speech_recognition as sr
 import webbrowser
-import musiclibrary
 from google import genai
 from google.genai import types
 import os
 from gtts import gTTS
 from pygame import mixer
 import time
-
+import pywhatkit
 mixer.init()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -63,10 +62,14 @@ def processcommand(c):
         webbrowser.open('https://reddit.com')
     elif 'open youtube' in c.lower():
         webbrowser.open('https://youtube.com')
-    elif (c.lower().startswith('play')):
-        song=c.lower().replace('play','',1).strip()
-        link=musiclibrary.music[song]
-        webbrowser.open(link)
+    elif c.lower().startswith('play'):
+        song = c.lower().replace('play', '', 1).strip()
+
+        if song:
+            speak(f"Playing {song}, Sir.")
+            pywhatkit.playonyt(song)
+        else:
+            speak("Please tell me the song name, Sir.")
     else:
         # let the AI handle the command
         aiprocess(c)
