@@ -1,0 +1,6 @@
+SpeechRecognition
+PyAudio
+google-genai
+gTTS
+pygame
+pywhatkit
