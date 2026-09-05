@@ -98,7 +98,7 @@ if __name__ == '__main__':
                     audio=r.listen(source)
                     command=r.recognize_google(audio)
 
-                    if 'thank you' in command.lower() or 'thanks' in command.lower():
+                    if 'thankyou' in command.lower() or 'thanks' in command.lower():
                         speak('you are welcome, sir.')
                         break
 
