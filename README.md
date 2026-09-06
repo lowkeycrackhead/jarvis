@@ -23,7 +23,7 @@ A Python voice assistant powered by Google Gemini. Jarvis listens for the wake w
 Clone the repository:
 
 ```powershell
-git clone https://github.com/YOUR-USERNAME/YOUR-REPOSITORY.git
+git clone https://github.com/YOUR-USERNAMElowkeycrackhead/jarvis.git
 cd YOUR-REPOSITORY
 ```
 
