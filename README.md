@@ -1,4 +1,4 @@
-# Jarvis Voice Assistant
+ # Jarvis Voice Assistant
 
 A Python voice assistant powered by Google Gemini. Jarvis listens for the wake word **“Jarvis”**, accepts voice commands, speaks responses, opens common websites, plays YouTube music, and handles general questions through Gemini.
 
@@ -53,7 +53,7 @@ python main.py
 
 Say **“Jarvis”**, wait for the response, then speak your command.
 
-To close Jarvis, say **“thank you”** or **“thanks.”**
+To close Jarvis, say **“stop,” “thank you,” or “thanks.”**
 
 ## Example Commands
 
@@ -62,6 +62,7 @@ To close Jarvis, say **“thank you”** or **“thanks.”**
 - “Jarvis, play Blinding Lights”
 - “Jarvis, what is artificial intelligence?”
 - “Jarvis, open GitHub”
+- “Jarvis, stop”
 
 ## Docker Support
 
