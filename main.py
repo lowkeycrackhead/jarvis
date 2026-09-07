@@ -122,8 +122,7 @@ if __name__ == '__main__':
                     print('jarvis active')
                     audio=r.listen(source)
                     command=r.recognize_google(audio)
-
-                    if 'thankyou' in command.lower() or 'thanks' in command.lower():
+                    if 'thankyou' in command.lower() or 'thanks' in command.lower() or 'stop' in command.lower():
                         speak('you are welcome, sir.')
                         break
 
