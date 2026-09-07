@@ -7,6 +7,7 @@ from gtts import gTTS
 from pygame import mixer
 import time
 import pywhatkit
+from datetime import datetime
 mixer.init()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -43,27 +44,49 @@ def aiprocess(command):
         print(f"Gemini error: {error}")
         speak("Sorry, I could not process that request.")
 
+
+def current_datetime_response(command):
+    """Return a spoken response for a time, date, or day request."""
+    now = datetime.now()
+    command = command.lower()
+
+    if "time" in command and any(word in command for word in ("date", "day", "today")):
+        return f"It is {now.strftime('%I:%M %p')}, {now.strftime('%A, %B %d, %Y')}, Sir."
+    if "time" in command:
+        return f"It is {now.strftime('%I:%M %p')}, Sir."
+    if "day" in command:
+        return f"Today is {now.strftime('%A')}, Sir."
+    return f"Today is {now.strftime('%A, %B %d, %Y')}, Sir."
+
+
 def processcommand(c):
-    if 'open google' in c.lower():
+    command = c.lower()
+
+    if command.strip() in {"stop", "exit", "quit"}:
+        speak("Shutting down, Sir.")
+        return True
+    elif any(word in command for word in ("time", "date", "day", "today")):
+        speak(current_datetime_response(command))
+    elif 'open google' in command:
         webbrowser.open('https://google.com')
-    elif 'open facebook' in c.lower():
+    elif 'open facebook' in command:
         webbrowser.open('https://facebook.com')
-    elif 'open whatsapp' in c.lower():
+    elif 'open whatsapp' in command:
         webbrowser.open('https://web.whatsapp.com')
-    elif 'open instagram' in c.lower():
+    elif 'open instagram' in command:
         webbrowser.open('https://instagram.com')
-    elif 'open twitter' in c.lower():
+    elif 'open twitter' in command:
         webbrowser.open('https://twitter.com')
-    elif 'open gmail' in c.lower():
+    elif 'open gmail' in command:
         webbrowser.open('https://mail.google.com')
-    elif 'open github' in c.lower():
+    elif 'open github' in command:
         webbrowser.open('https://github.com')
-    elif 'open reddit' in c.lower():
+    elif 'open reddit' in command:
         webbrowser.open('https://reddit.com')
-    elif 'open youtube' in c.lower():
+    elif 'open youtube' in command:
         webbrowser.open('https://youtube.com')
-    elif c.lower().startswith('play'):
-        song = c.lower().replace('play', '', 1).strip()
+    elif command.startswith('play'):
+        song = command.replace('play', '', 1).strip()
 
         if song:
             speak(f"Playing {song}, Sir.")
@@ -73,6 +96,8 @@ def processcommand(c):
     else:
         # let the AI handle the command
         aiprocess(c)
+
+    return False
 
 
 if __name__ == '__main__':
@@ -102,7 +127,8 @@ if __name__ == '__main__':
                         speak('you are welcome, sir.')
                         break
 
-                    processcommand(command)
+                    if processcommand(command):
+                        break
 
 
 
