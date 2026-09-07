@@ -9,6 +9,7 @@ A Python voice assistant powered by Google Gemini. Jarvis listens for the wake w
 - Gemini-powered conversational responses
 - Open Google, YouTube, GitHub, Gmail, Instagram, WhatsApp, Reddit, and more
 - Play songs on YouTube using voice commands
+- Tell the current local time, date, and day
 - Simple wake-word flow: say **“Jarvis”**, then speak your command
 
 ## Requirements
@@ -53,7 +54,7 @@ python main.py
 
 Say **“Jarvis”**, wait for the response, then speak your command.
 
-To close Jarvis, say **“stop,” “thank you,” or “thanks.”**
+To close Jarvis, say **“stop,” “exit,” “quit,” “thank you,” or “thanks.”**
 
 ## Example Commands
 
@@ -62,6 +63,9 @@ To close Jarvis, say **“stop,” “thank you,” or “thanks.”**
 - “Jarvis, play Blinding Lights”
 - “Jarvis, what is artificial intelligence?”
 - “Jarvis, open GitHub”
+- “Jarvis, what time is it?”
+- “Jarvis, what is today's date?”
+- “Jarvis, what day is it?”
 - “Jarvis, stop”
 
 ## Docker Support
