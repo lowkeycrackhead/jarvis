@@ -58,12 +58,17 @@ def current_datetime_response(command):
         return f"Today is {now.strftime('%A')}, Sir."
     return f"Today is {now.strftime('%A, %B %d, %Y')}, Sir."
 
+
 def processcommand(c):
     command = c.lower()
 
     if command.strip() in {"stop", "exit", "quit"}:
         speak("Shutting down, Sir.")
         return True
+
+    elif any(word in command for word in ("time", "date", "day", "today")):
+        speak(current_datetime_response(command))
+
 
     elif any(word in command for word in ("time", "date", "day", "today")):
         speak(current_datetime_response(command))
