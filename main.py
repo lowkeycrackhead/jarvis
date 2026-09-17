@@ -8,7 +8,9 @@ from pygame import mixer
 import time
 import pywhatkit
 from datetime import datetime
+import pyautogui
 mixer.init()
+music_playing = False
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 chat = client.chats.create(model="gemini-3.6-flash",config=types.GenerateContentConfig(
@@ -61,10 +63,21 @@ def current_datetime_response(command):
 
 def processcommand(c):
     command = c.lower()
+    global music_playing
 
     if command.strip() in {"stop", "exit", "quit"}:
         speak("Shutting down, Sir.")
         return True
+
+    
+    elif "stop the song" in command:
+            if music_playing:
+                pyautogui.press("space")
+                music_playing = False
+                speak("Music stopped, Sir.")
+            else:
+                speak("No music is currently playing, Sir.")
+                return False
 
     elif any(word in command for word in ("time", "date", "day", "today")):
         speak(current_datetime_response(command))
@@ -97,6 +110,7 @@ def processcommand(c):
         if song:
             speak(f"Playing {song}, Sir.")
             pywhatkit.playonyt(song)
+            music_playing = True
         else:
             speak("Please tell me the song name, Sir.")
     else:
