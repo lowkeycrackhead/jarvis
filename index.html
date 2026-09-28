@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jarvis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#040102; --surface:#0b0406; --surface2:#12070a;
+  --line:#1e0c10; --line2:#2d1116;
+  --red:#c1121f; --red-hi:#e5383b; --red-deep:#5a0a14;
+  --text:#f2e6e7; --muted:#9a7f83; --dim:#6b5558;
+  --font:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:dark}
+body{
+  margin:0;height:100dvh;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--bg);color:var(--text);font:400 15px/1.6 var(--font);
+  -webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(ellipse 60% 35% at 50% -5%,rgba(193,18,31,.14),transparent 70%);
+}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--red-hi);outline-offset:2px}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:calc(14px + env(safe-area-inset-top,0px)) 24px 14px;border-bottom:1px solid var(--line)}
+.brand{margin:0;font-size:16px;font-weight:600;letter-spacing:-.02em}
+.tools{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+#conn{display:flex;align-items:center;gap:8px;margin-right:10px}
+#conn i{width:7px;height:7px;border-radius:50%;background:var(--dim)}
+#conn.online i{background:var(--red-hi);box-shadow:0 0 8px var(--red-hi)}
+.ghost{background:none;border:1px solid transparent;border-radius:8px;padding:4px 10px;font-size:13px;color:var(--muted);transition:color .15s,border-color .15s}
+.ghost:hover{color:var(--text);border-color:var(--line2)}
+
+/* liquid glass capsule */
+.stage{display:flex;flex-direction:column;align-items:center;gap:22px;padding:38px 20px 8px}
+#status{margin:0;font-size:13px;color:var(--muted);text-align:center;min-height:1.6em}
+.floater{display:grid;justify-items:center;animation:float 7s ease-in-out infinite}
+.holder{position:relative;width:max-content;border-radius:999px;animation:glow 14s linear infinite}
+.capsule{
+  position:relative;display:block;width:250px;height:104px;padding:0;border-radius:999px;
+  overflow:hidden;isolation:isolate;
+  border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.06);
+  -webkit-backdrop-filter:blur(14px) saturate(1.7);backdrop-filter:blur(14px) saturate(1.7);
+  box-shadow:inset 0 1.5px 1px rgba(255,255,255,.65),inset 0 -14px 24px rgba(0,0,0,.3),inset 0 0 0 1px rgba(255,255,255,.07);
+  transition:width .4s ease,height .4s ease;
+}
+.liquid{position:absolute;z-index:-1;border-radius:50%;filter:blur(18px);background:#ff7b7b}
+.l1{width:62%;height:150%;left:-10%;top:-25%;animation:tint 14s linear infinite,drift1 9s ease-in-out infinite}
+.l2{width:60%;height:140%;right:-12%;top:-20%;background:#800000;animation:tint 14s linear -4.7s infinite,drift2 11s ease-in-out infinite}
+.l3{width:46%;height:120%;left:28%;top:-10%;background:#5e0b26;animation:tint 14s linear -9.3s infinite,drift3 13s ease-in-out infinite}
+.capsule::before{content:"";position:absolute;inset:0;z-index:1;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.5) 0,rgba(255,255,255,.12) 38%,rgba(255,255,255,0) 54%),radial-gradient(60% 45% at 50% 100%,rgba(255,255,255,.2),transparent 70%)}
+.capsule::after{content:"";position:absolute;left:12%;top:9%;z-index:1;width:34%;height:16%;border-radius:50%;pointer-events:none;
+  background:linear-gradient(90deg,rgba(255,255,255,.85),rgba(255,255,255,0));transform:rotate(-4deg)}
+.content{position:relative;z-index:2;height:100%;display:flex;align-items:center;justify-content:center;gap:14px}
+.content svg{width:30px;height:30px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45));transition:width .4s,height .4s}
+.bars{display:flex;align-items:center;gap:4px;height:34px}
+.bars i{display:block;width:4px;height:6px;border-radius:3px;background:rgba(255,255,255,.88);filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+.bars i:nth-child(2){animation-delay:-.15s}.bars i:nth-child(3){animation-delay:-.3s}
+.bars i:nth-child(4){animation-delay:-.45s}.bars i:nth-child(5){animation-delay:-.6s}
+.halo{position:absolute;inset:0;border-radius:999px;border:1px solid rgba(255,140,140,.7);opacity:0;pointer-events:none}
+.shadow{width:64%;height:16px;margin-top:24px;border-radius:50%;background:#ff7b7b;filter:blur(16px);opacity:.4;animation:tint 14s linear infinite,sh 7s ease-in-out infinite}
+
+/* states */
+.capsule[data-state="listening"] .bars i{height:9px}
+.capsule[data-state="listening"]~.halo{animation:halo 3.6s ease-out infinite}
+.capsule[data-state="awake"]~.halo{animation:halo 1.6s ease-out infinite}
+.capsule[data-state="awake"] .bars i,.capsule[data-state="speaking"] .bars i{animation:bar .9s ease-in-out infinite}
+.capsule[data-state="speaking"]{animation:talk .8s ease-in-out infinite}
+.capsule[data-state="thinking"]::after{animation:sweep 1.6s ease-in-out infinite}
+.capsule[data-state="thinking"] .liquid,.capsule[data-state="awake"] .liquid,.capsule[data-state="speaking"] .liquid{animation-duration:14s,4s}
+
+/* compact once a conversation starts */
+.has-msgs .stage{flex-direction:row;justify-content:center;gap:14px;padding:14px 20px 6px}
+.has-msgs .floater{animation-name:floatS}
+.has-msgs .capsule{width:128px;height:46px}
+.has-msgs .content{gap:8px}
+.has-msgs .content svg{width:18px;height:18px}
+.has-msgs .bars{height:18px;gap:3px}
+.has-msgs .bars i{width:3px;height:4px}
+.has-msgs .capsule[data-state="awake"] .bars i,.has-msgs .capsule[data-state="speaking"] .bars i{animation-name:barS}
+.has-msgs .shadow{display:none}
+
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+@keyframes floatS{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes sh{0%,100%{transform:scaleX(1);opacity:.4}50%{transform:scaleX(.78);opacity:.2}}
+@keyframes tint{0%,100%{background-color:#ff7b7b}33%{background-color:#800000}66%{background-color:#5e0b26}}
+@keyframes glow{
+  0%,100%{box-shadow:0 24px 64px -16px rgba(255,123,123,.6)}
+  33%{box-shadow:0 24px 64px -16px rgba(128,0,0,.85)}
+  66%{box-shadow:0 24px 64px -16px rgba(94,11,38,.9)}}
+@keyframes drift1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(40%,12%) scale(1.15)}}
+@keyframes drift2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-45%,-10%) scale(1.2)}}
+@keyframes drift3{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(-30%,14%) scale(.9)}66%{transform:translate(25%,-14%) scale(1.1)}}
+@keyframes halo{from{transform:scale(1);opacity:.6}to{transform:scale(1.14,1.45);opacity:0}}
+@keyframes talk{50%{transform:scale(1.05,1.08)}}
+@keyframes bar{0%,100%{height:6px}50%{height:28px}}
+@keyframes barS{0%,100%{height:4px}50%{height:15px}}
+@keyframes sweep{0%,100%{transform:translateX(-30%) rotate(-4deg)}50%{transform:translateX(170%) rotate(-4deg)}}
+
+.txt{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+.heard{margin:0;max-width:min(52ch,90vw);min-height:1.5em;font-size:13px;color:var(--dim);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.has-msgs .txt{align-items:flex-start}
+.has-msgs #status,.has-msgs .heard{text-align:left}
+
+/* conversation */
+.log{flex:1;min-height:0;overflow-y:auto;width:100%;max-width:720px;margin:0 auto;padding:10px 24px 18px;display:flex;flex-direction:column;gap:18px;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+.empty{margin:auto;width:100%;text-align:center;padding:10px 0}
+.empty h2{margin:0 0 6px;font-size:28px;font-weight:600;letter-spacing:-.035em}
+.empty p{margin:0 0 26px;color:var(--muted)}
+.sug{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:520px;margin:0 auto;text-align:left}
+.sug button{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;transition:border-color .15s,background .15s}
+.sug button:hover{border-color:var(--red-deep);background:var(--surface2)}
+.sug b{display:block;font-weight:500;font-size:14px}
+.sug span{font-size:13px;color:var(--muted)}
+.msg{max-width:62ch;overflow-wrap:anywhere}
+.msg.you{align-self:flex-end;background:var(--surface2);border:1px solid var(--line2);border-radius:14px 14px 4px 14px;padding:8px 14px}
+.msg.jarvis{align-self:flex-start;display:flex;gap:12px}
+.msg.jarvis::before{content:"";flex:none;width:22px;height:22px;margin-top:2px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff5d63,#c1121f 45%,#5a0a14)}
+.msg.error{align-self:center;color:#ff8a8f;font-size:13px;text-align:center;border:1px solid var(--red-deep);border-radius:10px;padding:6px 14px}
+.typing span{display:inline-block;width:6px;height:6px;margin:9px 2px 0;border-radius:50%;background:var(--muted);animation:dot 1.2s ease-in-out infinite}
+.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
+@keyframes dot{0%,80%,100%{opacity:.25}40%{opacity:1}}
+
+/* composer */
+.dock{padding:8px 20px calc(18px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,var(--bg) 65%,transparent)}
+.bar{display:flex;align-items:center;gap:6px;max-width:720px;margin:0 auto;padding:6px;background:var(--surface);border:1px solid var(--line2);border-radius:16px;transition:border-color .15s,box-shadow .15s}
+.bar:focus-within{border-color:var(--red);box-shadow:0 0 0 3px rgba(193,18,31,.18)}
+#text{flex:1;min-width:0;background:none;border:0;outline:0;padding:9px 6px;font-size:15px}
+#text::placeholder{color:var(--dim)}
+.icon,.send{flex:none;width:38px;height:38px;border-radius:11px;border:0;display:grid;place-items:center;transition:background .15s,opacity .15s}
+.icon{background:none;color:var(--muted)}
+.icon:hover{background:var(--surface2);color:var(--text)}
+.icon.on{background:var(--red-deep);color:#fff}
+.send{background:var(--red);color:#fff}
+.send:hover:not(:disabled){background:var(--red-hi)}
+.send:disabled{opacity:.3;cursor:default}
+.icon svg,.send svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+@media (max-width:560px){
+  .top{padding-left:16px;padding-right:16px}
+  #conn span{display:none}
+  .sug{grid-template-columns:1fr}
+  .empty h2{font-size:24px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1 class="brand">Jarvis</h1>
+  <div class="tools">
+    <span id="conn"><i></i><span id="connTxt">Connecting</span></span>
+    <button class="ghost" id="micMode" type="button">Mic: browser</button>
+    <button class="ghost" id="mute" type="button">Sound on</button>
+    <button class="ghost" id="clear" type="button">Clear</button>
+  </div>
+</header>
+
+<section class="stage">
+  <div class="floater">
+    <div class="holder">
+      <button class="capsule" id="orb" data-state="idle" type="button" aria-label="Start or stop listening">
+        <span class="liquid l1"></span><span class="liquid l2"></span><span class="liquid l3"></span>
+        <span class="content">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          <span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        </span>
+      </button>
+      <span class="halo"></span>
+    </div>
+    <div class="shadow"></div>
+  </div>
+  <div class="txt"><p id="status">Tap the capsule to start listening</p><p class="heard" id="heard"></p></div>
+</section>
+
+<section class="log" id="log" aria-live="polite"></section>
+
+<footer class="dock">
+  <form class="bar" id="form" autocomplete="off">
+    <button class="icon" id="micBtn" type="button" aria-label="Turn voice listening on or off">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+    <input id="text" type="text" placeholder="Type a command or ask a question" aria-label="Type a command or ask a question">
+    <button class="send" id="go" type="submit" aria-label="Send" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </button>
+  </form>
+</footer>
+
+<template id="emptyTpl">
+  <div class="empty" id="empty">
+    <h2>How can I help, Sir?</h2>
+    <p>Tap the capsule and say “Jarvis”, or press Space to talk. You can also type below.</p>
+    <div class="sug">
+      <button type="button" data-send="open youtube"><b>Open YouTube</b><span>Launches it in your browser</span></button>
+      <button type="button" data-send="what is the time and date"><b>Time and date</b><span>Ask what day it is</span></button>
+      <button type="button" data-fill="play "><b>Play a song</b><span>Plays it on YouTube</span></button>
+      <button type="button" data-fill=""><b>Ask a question</b><span>Answered by Gemini</span></button>
+    </div>
+  </div>
+</template>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var orb=$('orb'), statusEl=$('status'), heardEl=$('heard'), log=$('log'), input=$('text'), go=$('go'), micBtn=$('micBtn');
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  var rec=null, listening=false, awaiting=false, awaitTimer=null, heardTimer=null, sayId=0;
+  var speaking=false, busy=false, muted=false, offline=false;
+  var useServer=false, srvActive=false, epoch=0;   // useServer = listen through the computer's mic
+  try{useServer=localStorage.getItem('jarvis-mic')==='server';}catch(_){}
+  // the browser often mishears "Jarvis", so accept close variants
+  var WAKE=/(jarvis|jarvas|jervis|jarves|charvis|jarvice|gervais|travis|jarvi)/i;
+
+  function setState(s,msg){orb.dataset.state=s; if(msg) statusEl.textContent=msg;}
+  function idle(){
+    micBtn.classList.toggle('on',listening);
+    if(offline) return setState('idle','Jarvis shut down. Send any command to wake it.');
+    if(!listening) return setState('idle','Tap the capsule to start listening');
+    if(awaiting) return setState('awake','I’m listening, Sir…');
+    setState('listening','Say “Jarvis” (or press Space) to wake me');
+  }
+  function showHeard(t,final){
+    heardEl.textContent=t?('Heard: “'+t+'”'):'';
+    clearTimeout(heardTimer);
+    if(final) heardTimer=setTimeout(function(){heardEl.textContent='';},4000);
+  }
+
+  /* ---------- conversation ---------- */
+  function showEmpty(){
+    document.body.classList.remove('has-msgs');
+    log.innerHTML=''; log.appendChild($('emptyTpl').content.cloneNode(true));
+  }
+  function addMsg(who,text){
+    var e=$('empty'); if(e) e.remove();
+    document.body.classList.add('has-msgs');
+    var d=document.createElement('div'); d.className='msg '+who;
+    if(who==='jarvis'){var p=document.createElement('div'); p.textContent=text; d.appendChild(p);} else d.textContent=text;
+    log.appendChild(d); log.scrollTop=log.scrollHeight; return d;
+  }
+  function addTyping(){
+    var d=document.createElement('div'); d.className='msg jarvis typing';
+    d.innerHTML='<div><span></span><span></span><span></span></div>';
+    log.appendChild(d); log.scrollTop=log.scrollHeight; return d;
+  }
+
+  /* ---------- speaking (browser voice) ---------- */
+  function say(text){
+    return new Promise(function(done){
+      if(muted||!('speechSynthesis' in window)||!text){done();return;}
+      var id=++sayId, finished=false, guard;
+      function end(){
+        if(finished) return; finished=true; clearTimeout(guard);
+        if(id===sayId){speaking=false; resumeRec(); idle();}
+        done();
+      }
+      try{
+        if(speechSynthesis.speaking||speechSynthesis.pending) speechSynthesis.cancel();
+        var u=new SpeechSynthesisUtterance(text); u.lang='en-GB'; u.rate=1.02;
+        u.onend=end; u.onerror=end;
+        speaking=true; pauseRec(); setState('speaking','Speaking…');
+        guard=setTimeout(end,Math.max(4000,text.length*95)); // never get stuck if the voice fails silently
+        speechSynthesis.speak(u);
+      }catch(_){ end(); }
+    });
+  }
+
+  /* ---------- listening (browser mic) ---------- */
+  function pauseRec(){
+    if(useServer){epoch++; return;}
+    if(rec&&listening){try{rec.stop()}catch(_){}}
+  }
+  function resumeRec(){
+    if(!listening) return;
+    if(useServer){serverLoop(); return;}
+    if(rec){try{rec.start()}catch(_){}}
+  }
+
+  // Listen through the computer's own microphone (server.py) instead of the browser's speech service
+  function serverLoop(){
+    if(!listening||!useServer||srvActive||speaking||busy) return;
+    srvActive=true; var my=epoch;
+    fetch('/api/listen',{method:'POST'})
+      .then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});})
+      .then(function(x){
+        srvActive=false;
+        if(!x.ok){
+          listening=false; awaiting=false; idle();
+          statusEl.textContent=x.d.error||'The computer’s microphone failed.';
+          return;
+        }
+        if(listening&&my===epoch&&x.d.text){ console.log('heard:',x.d.text); showHeard(x.d.text,true); heard(x.d.text); }
+      })
+      .catch(function(){
+        srvActive=false; listening=false; awaiting=false; idle();
+        statusEl.textContent='Can’t reach the Jarvis server. Check that server.py is still running.';
+      })
+      .then(function(){ if(listening) setTimeout(serverLoop,60); });
+  }
+  function updateMicLabel(){ $('micMode').textContent=useServer?'Mic: computer':'Mic: browser'; }
+  function switchToServer(){
+    useServer=true; try{localStorage.setItem('jarvis-mic','server')}catch(_){}
+    updateMicLabel();
+    try{rec&&rec.stop()}catch(_){}
+    idle();
+    statusEl.textContent='Browser speech can’t reach Google. Using this computer’s microphone instead.';
+    serverLoop();
+  }
+
+  function startListening(){
+    if(useServer){listening=true; idle(); serverLoop(); return;}
+    if(!SR){setState('idle','Voice input needs Chrome or Edge. Typing still works.');return;}
+    rec=new SR(); rec.lang='en-US'; rec.continuous=true; rec.interimResults=true;
+    rec.onresult=function(e){
+      var interim='';
+      for(var i=e.resultIndex;i<e.results.length;i++){
+        var t=e.results[i][0].transcript.trim();
+        if(e.results[i].isFinal){ console.log('heard:',t); showHeard(t,true); heard(t); }
+        else interim+=t+' ';
+      }
+      if(interim) showHeard(interim.trim(),false);
+    };
+    rec.onend=function(){
+      if(listening&&!speaking&&!useServer) setTimeout(function(){ if(listening&&!speaking&&!useServer){try{rec.start()}catch(_){}} },250);
+    };
+    rec.onerror=function(e){
+      var msg=null;
+      if(e.error==='not-allowed'||e.error==='service-not-allowed') msg='Microphone is blocked. Allow it in the address bar, then tap the capsule.';
+      else if(e.error==='network'){ switchToServer(); return; }
+      else if(e.error==='audio-capture') msg='No microphone found. Plug one in or choose it in your browser settings.';
+      if(msg){listening=false; awaiting=false; idle(); statusEl.textContent=msg;}
+    };
+    listening=true;
+    try{rec.start()}catch(_){}
+    idle();
+  }
+  function stopListening(){
+    epoch++; listening=false; awaiting=false; clearTimeout(awaitTimer);
+    try{rec&&rec.stop()}catch(_){}
+    showHeard('');
+    idle();
+  }
+  function toggleListening(){ listening?stopListening():startListening(); }
+
+  function armCommand(){
+    awaiting=true; clearTimeout(awaitTimer);
+    setState('awake','I’m listening, Sir…');
+    awaitTimer=setTimeout(function(){awaiting=false; idle();},12000);
+  }
+  // push to talk: skips the wake word entirely
+  function talkNow(){
+    if(!SR&&!useServer){setState('idle','Voice input needs Chrome or Edge. Typing still works.');return;}
+    if(!listening) startListening();
+    if(listening) armCommand();
+  }
+
+  function heard(text){
+    if(!text||busy||speaking) return;
+    if(awaiting){awaiting=false; clearTimeout(awaitTimer); return send(text);}
+    var m=text.match(WAKE); if(!m) return;
+    var rest=text.slice(m.index+m[0].length).replace(/^[\s,.!?:;-]+/,'');
+    if(rest) return send(rest);
+    armCommand();
+    say('Yes sir.');
+  }
+
+  /* ---------- talking to server.py ---------- */
+  function send(text){
+    if(busy) return Promise.resolve();
+    busy=true; offline=false; addMsg('you',text); setState('thinking','Working on it…');
+    var typing=addTyping();
+    return fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
+      .then(function(r){return r.json().then(function(d){if(!r.ok) throw new Error(d.error||'Server error'); return d;});})
+      .then(function(d){
+        typing.remove(); setConn(true);
+        d.replies.forEach(function(line){addMsg('jarvis',line);});
+        return say(d.replies.join(' ')).then(function(){
+          if(d.shutdown){offline=true; stopListening();}
+        });
+      })
+      .catch(function(err){
+        typing.remove();
+        var down=err instanceof TypeError;
+        addMsg('error', down
+          ? 'Can’t reach the Jarvis server. Check that server.py is still running.'
+          : 'Something went wrong: '+err.message);
+        setConn(!down);
+      })
+      .then(function(){busy=false; idle(); resumeRec();});
+  }
+
+  function setConn(ok){
+    $('conn').className=ok?'online':'';
+    $('connTxt').textContent=ok?'Connected':'Server offline';
+  }
+  function ping(){
+    fetch('/api/health').then(function(r){setConn(r.ok)}).catch(function(){setConn(false)});
+  }
+
+  /* ---------- controls ---------- */
+  orb.addEventListener('click',function(){toggleListening(); orb.blur();});
+  micBtn.addEventListener('click',function(){toggleListening(); micBtn.blur();});
+  document.addEventListener('keydown',function(e){
+    var tag=document.activeElement&&document.activeElement.tagName;
+    if(e.code==='Space'&&!e.repeat&&tag!=='INPUT'&&tag!=='BUTTON'){e.preventDefault(); talkNow();}
+  });
+  $('form').addEventListener('submit',function(e){
+    e.preventDefault(); var t=input.value.trim(); input.value=''; go.disabled=true; if(t) send(t);
+  });
+  input.addEventListener('input',function(){go.disabled=!input.value.trim();});
+  input.addEventListener('keydown',function(e){ if(e.key==='Escape'){input.value=''; go.disabled=true;} });
+  log.addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    if(b.hasAttribute('data-send')) send(b.dataset.send);
+    else if(b.hasAttribute('data-fill')){input.value=b.dataset.fill; go.disabled=!input.value.trim(); input.focus();}
+  });
+  $('mute').addEventListener('click',function(){
+    muted=!muted; this.textContent=muted?'Sound off':'Sound on';
+    if(muted&&'speechSynthesis' in window) speechSynthesis.cancel();
+  });
+  $('micMode').addEventListener('click',function(){
+    var was=listening; if(was) stopListening();
+    useServer=!useServer; try{localStorage.setItem('jarvis-mic',useServer?'server':'browser')}catch(_){}
+    updateMicLabel(); if(was) startListening();
+    this.blur();
+  });
+  $('clear').addEventListener('click',showEmpty);
+
+  updateMicLabel(); showEmpty(); ping(); setInterval(ping,8000);
+})();
+</script>
+</body>
+</html>
