@@ -68,8 +68,6 @@ def processcommand(c):
     if command.strip() in {"stop", "exit", "quit"}:
         speak("Shutting down, Sir.")
         return True
-
-    
     elif "stop the song" in command:
             if music_playing:
                 pyautogui.press("space")
@@ -78,10 +76,6 @@ def processcommand(c):
             else:
                 speak("No music is currently playing, Sir.")
                 return False
-
-    elif any(word in command for word in ("time", "date", "day", "today")):
-        speak(current_datetime_response(command))
-
 
     elif any(word in command for word in ("time", "date", "day", "today")):
         speak(current_datetime_response(command))
