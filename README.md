@@ -1,117 +1,135 @@
-  # Jarvis Voice Assistant
+  # JARVIS Voice Assistant
 
-A Python voice assistant powered by Google Gemini. Jarvis listens for the wake word **“Jarvis”**, accepts voice commands, speaks responses, opens common websites, plays YouTube music, and handles general questions through Gemini.
+A Windows desktop voice assistant built with Python and Google Gemini. JARVIS listens for its wake word, accepts spoken commands, replies aloud, opens frequently used websites, plays music on YouTube, and answers general questions through Gemini.
 
 ## Features
 
-- Voice recognition using your microphone
-- Text-to-speech responses
-- Gemini-powered conversational responses
-- Open Google, YouTube, GitHub, Gmail, Instagram, WhatsApp, Reddit, and more
-- Play songs on YouTube using voice commands
-- Tell the current local time, date, and day
-- Simple wake-word flow: say **“Jarvis”**, then speak your command
+- Wake-word interaction: say **"Jarvis"**, then say your command.
+- Speech recognition through your microphone.
+- Natural spoken responses with Google Text-to-Speech.
+- Gemini-powered general questions and conversation.
+- Quick commands for Google, YouTube, Gmail, GitHub, WhatsApp, Instagram, Reddit, and other websites.
+- YouTube music playback.
+- Current time, date, and day responses.
+- Optional browser control panel via `server.py`.
 
 ## Requirements
 
-- Python 3.12 or later
-- A microphone and speakers
-- A Gemini API key from Google AI Studio
-- Internet connection
+- Windows 10 or 11
+- Python 3.10 or newer
+- A working microphone and speakers
+- Internet access
+- A Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
 
 ## Installation
 
-Clone the repository:
+Clone the repository and enter its folder:
 
 ```powershell
-git clone https://github.com/lowkeycrackhead/jarvis.git
+git clone https://github.com/YOUR-USERNAME/jarvis.git
 cd jarvis
 ```
 
-Install all required Python packages with one command:
+Create and activate a virtual environment (recommended):
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+Install the dependencies:
+
+```powershell
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+python -m pip install python-dotenv
 ```
 
-## Configure the Gemini API Key
+> `python-dotenv` is required because JARVIS reads the Gemini key from a local `.env` file.
 
-Before running Jarvis, set your Gemini API key in PowerShell:
+## Configure Gemini
 
-```powershell
-$env:GEMINI_API_KEY="paste_your_gemini_api_key_here"
+Create a file named `.env` in the project folder:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-Keep this PowerShell window open while running the app.
+Use the complete API key exactly as provided by Google AI Studio. Do not add spaces, quote marks, or your key to source code.
 
-> Never commit or share your Gemini API key.
-
-## Run Jarvis
+## Run JARVIS
 
 ```powershell
 python main.py
 ```
 
-Say **“Jarvis”**, wait for the response, then speak your command.
+Say **"Jarvis"**, wait for the acknowledgement, and then speak your command.
 
-To close Jarvis, say **“stop,” “exit,” “quit,” “thank you,” or “thanks.”**
+To close the assistant, say **"stop"**, **"exit"**, or **"quit"**.
 
 ## Example Commands
 
-- “Jarvis, open YouTube”
-- “Jarvis, open Google”
-- “Jarvis, play Blinding Lights”
-- “Jarvis, what is artificial intelligence?”
-- “Jarvis, open GitHub”
-- “Jarvis, what time is it?”
-- “Jarvis, what is today's date?”
-- “Jarvis, what day is it?”
-- “Jarvis, stop”
+- "Jarvis, open YouTube"
+- "Jarvis, open GitHub"
+- "Jarvis, play Blinding Lights"
+- "Jarvis, what time is it?"
+- "Jarvis, what is artificial intelligence?"
+- "Jarvis, stop"
 
-## Docker Support
+## Optional Web Control Panel
 
-Docker installs the Python dependencies automatically inside a container.
-
-Build the image:
+The project also includes a small local browser interface:
 
 ```powershell
-docker build -t jarvis .
+python -m pip install flask
+python server.py
 ```
 
-Create a `.env` file containing:
+Open `http://127.0.0.1:5000` if the browser does not open automatically.
 
-```text
-GEMINI_API_KEY=paste_your_gemini_api_key_here
-```
+## Troubleshooting
 
-Test the Gemini client:
+### Gemini 401 authentication error
+
+Confirm that `.env` is in the same folder as `main.py`, that `GEMINI_API_KEY` contains the complete active key, and that the project dependencies are up to date:
 
 ```powershell
-docker run --rm --env-file .env jarvis python client.py
+python -m pip install --upgrade google-genai python-dotenv
 ```
 
-### Important Docker Limitation
+If a valid key still returns `401 UNAUTHENTICATED`, the key or its Google AI Studio project is being rejected by Google. Recheck the key status and project in AI Studio; this is not caused by a voice command.
 
-The full `main.py` voice assistant should be run directly on Windows with Python. Docker Desktop does not reliably provide access to your microphone, speakers, or browser automation on Windows.
+### PyAudio installation issue
 
-Use Docker for dependency testing and `client.py`; use `python main.py` for the complete voice assistant.
+PyAudio may require additional Windows build support on some machines. Install a compatible PyAudio wheel for your Python version, then rerun:
 
-## Project Structure
-
-```text
-├── main.py              # Main voice assistant
-├── client.py            # Gemini test client
-├── requirements.txt     # Python dependencies
-├── Dockerfile           # Docker build instructions
-├── .dockerignore        # Files excluded from Docker builds
-├── .gitignore           # Files excluded from GitHub
-└── README.md            # Project documentation
+```powershell
+python -m pip install -r requirements.txt
 ```
 
 ## Security
 
-Do not upload any file containing your Gemini API key. Add `.env` to `.gitignore` before publishing changes.
+Your Gemini key is a password. Never commit it to GitHub. Create a `.gitignore` file containing at least:
+
+```gitignore
+.env
+.venv/
+__pycache__/
+*.mp3
+```
+
+## Project Structure
+
+```text
+├── main.py            # Voice-assistant application
+├── server.py          # Optional local web control panel
+├── index.html         # Browser interface for server.py
+├── client.py          # Basic Gemini client test
+├── requirements.txt   # Python dependencies
+├── dockerfile         # Container build instructions
+└── README.md          # Project documentation
+```
 
 ## License
 
-This project is intended for personal and educational use.
+This project is provided for personal and educational use.

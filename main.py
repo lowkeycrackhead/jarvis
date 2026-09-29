@@ -12,14 +12,30 @@ import pyautogui
 mixer.init()
 music_playing = False
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-chat = client.chats.create(model="gemini-3.6-flash",config=types.GenerateContentConfig(
+from dotenv import load_dotenv
+
+load_dotenv()
+
+api_key = os.getenv("GEMINI_API_KEY", "").strip()
+
+if not api_key:
+    raise RuntimeError(
+        "GEMINI_API_KEY was not found. Add it to your .env file or Windows environment variables."
+    )
+
+client = genai.Client(api_key=api_key)
+
+chat = client.chats.create(
+    model="gemini-3.8-flash",
+    config=types.GenerateContentConfig(
         system_instruction="""
         You are Jarvis, a concise and helpful voice assistant.
         Address the user as Sir.
         give short and crisp responses, and avoid unnecessary explanations.
         """
-    ))
+    )
+)
+
 recognizer=sr.Recognizer()
 def speak(text):
     filename = "jarvis_response.mp3"
@@ -45,7 +61,6 @@ def aiprocess(command):
     except Exception as error:
         print(f"Gemini error: {error}")
         speak("Sorry, I could not process that request.")
-
 
 def current_datetime_response(command):
     """Return a spoken response for a time, date, or day request."""
