@@ -3,6 +3,8 @@ import importlib
 import json
 import os
 import re
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -12,7 +14,15 @@ import webbrowser
 from datetime import datetime
 from typing import Any
 
-import pyaudio  # noqa: F401
+try:
+    import pyaudio  # noqa: F401
+except ModuleNotFoundError:
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "PyAudio"])
+        import pyaudio  # noqa: F401
+    except Exception:
+        pyaudio = None  # type: ignore[assignment]
+
 import speech_recognition as sr
 from dotenv import load_dotenv
 from google import genai
