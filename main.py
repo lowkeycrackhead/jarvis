@@ -12,27 +12,12 @@ import webbrowser
 from datetime import datetime
 from typing import Any
 
-try:
-    import speech_recognition as sr
-except Exception:
-    sr = None  # type: ignore[assignment]
-
-try:
-    from dotenv import load_dotenv
-except Exception:
-    load_dotenv = None  # type: ignore[assignment]
-
-try:
-    from google import genai
-    from google.genai import types
-except Exception:
-    genai = None  # type: ignore[assignment]
-    types = None  # type: ignore[assignment]
-
-try:
-    from gtts import gTTS
-except Exception:
-    gTTS = None  # type: ignore[assignment]
+import pyaudio  # noqa: F401
+import speech_recognition as sr
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+from gtts import gTTS
 
 try:
     from pygame import mixer
@@ -58,11 +43,10 @@ def _load_env_files() -> None:
         os.path.join(os.path.dirname(BASE_DIR), ".env"),
     ):
         if os.path.isfile(env_path):
-            if load_dotenv is not None:
-                try:
-                    load_dotenv(env_path, override=True)
-                except Exception:
-                    pass
+            try:
+                load_dotenv(env_path, override=True)
+            except Exception:
+                pass
             try:
                 with open(env_path, "r", encoding="utf-8", errors="ignore") as f:
                     for raw_line in f:
@@ -125,7 +109,7 @@ WAKE_WORD_PATTERN = re.compile(
 )
 
 music_playing: bool = False
-recognizer = sr.Recognizer() if sr is not None else None
+recognizer = sr.Recognizer()
 _mixer_initialized: bool = False
 _ai_lock = threading.Lock()
 _active_chat: Any = None
@@ -160,7 +144,7 @@ def _get_api_key() -> str:
 
 
 def _build_clients(api_key: str) -> list[Any]:
-    if not api_key or genai is None:
+    if not api_key:
         return []
     os.environ.pop("GOOGLE_API_KEY", None)
     os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
@@ -181,7 +165,7 @@ def speak(text: str) -> None:
     clean = re.sub(r"\s+", " ", clean).strip()
     if not clean:
         return
-    if not _ensure_mixer() or mixer is None or gTTS is None:
+    if not _ensure_mixer() or mixer is None:
         print(f"Jarvis: {clean}")
         return
     temp_path: str | None = None
@@ -224,12 +208,10 @@ def _weather_fallback(prompt: str) -> str | None:
 
 
 def _fallback_ai_answer(prompt: str) -> str | None:
-    # 1. Direct live weather check for weather queries (like client.py's test query)
     weather_ans = _weather_fallback(prompt)
     if weather_ans and "right now is" in weather_ans:
         return weather_ans
 
-    # 2. Pollinations OpenAI-compatible POST endpoint
     try:
         messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
         for u_msg, a_msg in _conversation_history[-4:]:
@@ -261,7 +243,6 @@ def _fallback_ai_answer(prompt: str) -> str | None:
     except Exception:
         pass
 
-    # 3. Pollinations GET text fallback
     try:
         full_prompt = f"{SYSTEM_INSTRUCTION}\nUser: {prompt}\nJarvis:"
         encoded = urllib.parse.quote(full_prompt)
@@ -276,7 +257,6 @@ def _fallback_ai_answer(prompt: str) -> str | None:
     except Exception:
         pass
 
-    # 4. Wikipedia summary fallback for factual queries
     try:
         clean_q = re.sub(
             r"^(?:what\s+is|what\s+are|who\s+is|who\s+was|tell\s+me\s+about|explain|define)\s+",
@@ -334,7 +314,7 @@ def generate_ai_reply(command: str) -> str:
                 _active_chat = None
 
         api_key = _get_api_key()
-        if api_key and not _gemini_key_rejected and genai is not None and types is not None:
+        if api_key and not _gemini_key_rejected:
             config = types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
             auth_failed_all = True
             for cand_client in _build_clients(api_key):
@@ -525,43 +505,40 @@ def processcommand(c: str) -> bool:
 
 if __name__ == "__main__":
     speak("Initializing Jarvis....")
-    if sr is None:
-        print("SpeechRecognition package is not installed. Run: pip install -r requirements.txt")
-    else:
-        r = sr.Recognizer()
-        calibrated = False
-        while True:
-            print("recognizing")
-            command = ""
-            try:
-                with sr.Microphone() as source:
-                    if not calibrated:
-                        r.adjust_for_ambient_noise(source, duration=0.5)
-                        calibrated = True
-                    print("listening...")
-                    audio = r.listen(source, timeout=4, phrase_time_limit=6)
-                word = r.recognize_google(audio)
-                print(repr(word))
-                match = WAKE_WORD_PATTERN.search(word)
-                if match:
-                    inline_cmd = word[match.end() :].lstrip(" ,.!?:;-").strip()
-                    if inline_cmd:
-                        command = inline_cmd
-                    else:
-                        speak("Yes Sir")
-                        with sr.Microphone() as source:
-                            print("jarvis active")
-                            audio = r.listen(source, timeout=6, phrase_time_limit=12)
-                        command = r.recognize_google(audio)
-                    if "thank you" in command.lower() or "thanks" in command.lower():
-                        speak("You are welcome, Sir.")
-                        break
-                    if processcommand(command):
-                        break
-            except (sr.WaitTimeoutError, sr.UnknownValueError):
-                continue
-            except KeyboardInterrupt:
-                speak("Shutting down, Sir.")
-                break
-            except Exception as e:
-                print(f"google error; {e}")
+    r = sr.Recognizer()
+    calibrated = False
+    while True:
+        print("recognizing")
+        command = ""
+        try:
+            with sr.Microphone() as source:
+                if not calibrated:
+                    r.adjust_for_ambient_noise(source, duration=0.5)
+                    calibrated = True
+                print("listening...")
+                audio = r.listen(source, timeout=4, phrase_time_limit=6)
+            word = r.recognize_google(audio)
+            print(repr(word))
+            match = WAKE_WORD_PATTERN.search(word)
+            if match:
+                inline_cmd = word[match.end() :].lstrip(" ,.!?:;-").strip()
+                if inline_cmd:
+                    command = inline_cmd
+                else:
+                    speak("Yes Sir")
+                    with sr.Microphone() as source:
+                        print("jarvis active")
+                        audio = r.listen(source, timeout=6, phrase_time_limit=12)
+                    command = r.recognize_google(audio)
+                if "thank you" in command.lower() or "thanks" in command.lower():
+                    speak("You are welcome, Sir.")
+                    break
+                if processcommand(command):
+                    break
+        except (sr.WaitTimeoutError, sr.UnknownValueError):
+            continue
+        except KeyboardInterrupt:
+            speak("Shutting down, Sir.")
+            break
+        except Exception as e:
+            print(f"google error; {e}")
