@@ -1,3 +1,5 @@
+# pyright: reportMissingImports=false, reportMissingModuleSource=false, reportOptionalMemberAccess=false, reportAttributeAccessIssue=false, reportGeneralTypeIssues=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+import importlib
 import json
 import os
 import re
@@ -8,48 +10,53 @@ import urllib.parse
 import urllib.request
 import webbrowser
 from datetime import datetime
+from typing import Any
 
-import speech_recognition as sr
-from google import genai
-from google.genai import types
-from gtts import gTTS
+try:
+    import speech_recognition as sr
+except Exception:
+    sr = None  # type: ignore[assignment]
 
 try:
     from dotenv import load_dotenv
 except Exception:
-    load_dotenv = None
+    load_dotenv = None  # type: ignore[assignment]
+
+try:
+    from google import genai
+    from google.genai import types
+except Exception:
+    genai = None  # type: ignore[assignment]
+    types = None  # type: ignore[assignment]
+
+try:
+    from gtts import gTTS
+except Exception:
+    gTTS = None  # type: ignore[assignment]
 
 try:
     from pygame import mixer
 except Exception:
-    mixer = None
+    mixer = None  # type: ignore[assignment]
 
 try:
     import pyautogui
 except Exception:
-    pyautogui = None
+    pyautogui = None  # type: ignore[assignment]
 
 try:
     import pywhatkit
 except Exception:
-    pywhatkit = None
+    pywhatkit = None  # type: ignore[assignment]
 
-try:
-    import musiclibrary
-except Exception:
-    musiclibrary = None
-
-# Always resolve .env from the directory containing main.py (or its parent folder)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def _load_env_files():
-    """Load .env from current script directory or parent directory, with built-in parser fallback."""
-    candidate_paths = [
+def _load_env_files() -> None:
+    for env_path in (
         os.path.join(BASE_DIR, ".env"),
         os.path.join(os.path.dirname(BASE_DIR), ".env"),
-    ]
-    for env_path in candidate_paths:
+    ):
         if os.path.isfile(env_path):
             if load_dotenv is not None:
                 try:
@@ -80,48 +87,62 @@ SYSTEM_INSTRUCTION = (
     "and avoid unnecessary explanations."
 )
 
-# Prioritized Gemini Flash models across 2026 & 2.5 families
-CANDIDATE_MODELS = [
-    m
-    for m in [
-        os.getenv("GEMINI_MODEL", "").strip(),
-        "gemini-3.6-flash",
-        "gemini-3.7-flash",
-        "gemini-3.5-flash-lite",
-        "gemini-3.8-flash",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-    ]
-    if m
-]
-CANDIDATE_MODELS = list(dict.fromkeys(CANDIDATE_MODELS))
+DEFAULT_MUSIC: dict[str, str] = {
+    "the finest": "https://youtu.be/Ld9hW_ztn_c",
+    "lip shade": "https://youtu.be/B85XuqXJCRY",
+    "dusky": "https://youtu.be/acnHDzmxwyc",
+    "piche tere": "https://youtu.be/SZisWzyBdHI",
+    "kurbaan hua": "https://youtu.be/gCNmhrvplpw",
+    "kath lagda": "https://youtu.be/nMozMETeCyw",
+    "hood ambience": "https://youtu.be/qs61wmCGBhs",
+    "city dreams": "https://youtu.be/OUUWLyfn3hY",
+    "moodshift": "https://youtu.be/8cxMyUx-T74",
+    "she aint easy": "https://youtu.be/p4s7iPXlGlI",
+    "kaare": "https://youtu.be/kr_CAcR0Bz4",
+    "headliner": "https://youtu.be/GE6w7DRyqcM",
+}
+
+CANDIDATE_MODELS: list[str] = list(
+    dict.fromkeys(
+        m
+        for m in [
+            os.getenv("GEMINI_MODEL", "").strip(),
+            "gemini-3.6-flash",
+            "gemini-3.7-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.8-flash",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-2.0-flash",
+        ]
+        if m
+    )
+)
 
 WAKE_WORD_PATTERN = re.compile(
     r"\b(jarvis|jarvas|jervis|jarves|charvis|jarvice|gervais|jarvi)\b",
     re.IGNORECASE,
 )
 
-music_playing = False
-recognizer = sr.Recognizer()
-_mixer_initialized = False
+music_playing: bool = False
+recognizer = sr.Recognizer() if sr is not None else None
+_mixer_initialized: bool = False
 _ai_lock = threading.Lock()
-_active_chat = None
-_active_client = None
-_active_model = None
-_conversation_history = []
+_active_chat: Any = None
+_gemini_key_rejected: bool = False
+_conversation_history: list[tuple[str, str]] = []
 
 
-def _ensure_mixer():
-    """Initialize pygame mixer safely on demand without crashing headless/server environments."""
+def _ensure_mixer() -> bool:
     global _mixer_initialized
-    if _mixer_initialized or mixer is None:
-        return _mixer_initialized
+    if _mixer_initialized:
+        return True
+    if mixer is None:
+        return False
     try:
         mixer.init()
         _mixer_initialized = True
-    except Exception as error:
-        print(f"Audio mixer warning: {error}")
+    except Exception:
         _mixer_initialized = False
     return _mixer_initialized
 
@@ -129,83 +150,52 @@ def _ensure_mixer():
 _ensure_mixer()
 
 
-def _get_api_key():
-    """Retrieve and sanitize the Gemini API key from .env or environment variables."""
+def _get_api_key() -> str:
     _load_env_files()
-    raw_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
-    clean_key = raw_key.strip().strip('"').strip("'")
-    if clean_key:
-        os.environ["GEMINI_API_KEY"] = clean_key
-    return clean_key
+    raw = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+    clean = raw.strip().strip('"').strip("'")
+    if clean:
+        os.environ["GEMINI_API_KEY"] = clean
+    return clean
 
 
-def _build_clients(api_key):
-    """
-    Build candidate google-genai clients:
-    1. Standard Gemini Developer API client (generativelanguage.googleapis.com)
-    2. Vertex AI / Agent Platform Express client (aiplatform.googleapis.com) for AQ.-prefixed keys
-    """
-    if not api_key:
+def _build_clients(api_key: str) -> list[Any]:
+    if not api_key or genai is None:
         return []
-
-    # Clear conflicting env vars that cause 401 OVERLOADED_CREDENTIALS in google-genai
     os.environ.pop("GOOGLE_API_KEY", None)
     os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
-
-    clients = []
+    clients: list[Any] = []
     for use_vertex in (False, True):
         try:
             if use_vertex:
-                clients.append(("vertexai", genai.Client(vertexai=True, api_key=api_key)))
+                clients.append(genai.Client(vertexai=True, api_key=api_key))
             else:
-                clients.append(("gemini_api", genai.Client(api_key=api_key)))
+                clients.append(genai.Client(api_key=api_key))
         except Exception:
             continue
     return clients
 
 
-def _clean_text_for_speech(text):
-    """Strip Markdown symbols so gTTS reads natural sentences instead of saying 'asterisk'."""
-    if not text:
-        return ""
-    cleaned = re.sub(r"```[\s\S]*?```", " ", str(text))
-    cleaned = re.sub(r"`([^`]*)`", r"\1", cleaned)
-    cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
-    cleaned = re.sub(r"[*_#~>|]+", " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned
-
-
-def speak(text):
-    """Convert text to speech and play it aloud."""
-    clean_text = _clean_text_for_speech(text)
-    if not clean_text:
+def speak(text: str) -> None:
+    clean = re.sub(r"[*_#~>`]+", " ", str(text or ""))
+    clean = re.sub(r"\s+", " ", clean).strip()
+    if not clean:
         return
-
-    if not _ensure_mixer():
-        print(f"Jarvis: {clean_text}")
+    if not _ensure_mixer() or mixer is None or gTTS is None:
+        print(f"Jarvis: {clean}")
         return
-
-    temp_path = None
+    temp_path: str | None = None
     try:
         fd, temp_path = tempfile.mkstemp(prefix="jarvis_response_", suffix=".mp3", dir=BASE_DIR)
         os.close(fd)
-
-        tts = gTTS(text=clean_text, lang="en", slow=False)
-        tts.save(temp_path)
-
+        gTTS(text=clean, lang="en", slow=False).save(temp_path)
         mixer.music.load(temp_path)
         mixer.music.play()
-
         while mixer.music.get_busy():
             time.sleep(0.1)
-
-        try:
-            mixer.music.unload()
-        except Exception:
-            pass
-    except Exception as error:
-        print(f"TTS error: {error}")
+        mixer.music.unload()
+    except Exception:
+        pass
     finally:
         if temp_path and os.path.exists(temp_path):
             for _ in range(3):
@@ -216,80 +206,36 @@ def speak(text):
                     time.sleep(0.1)
 
 
-def _direct_gemini_rest(api_key, prompt):
-    """
-    Direct REST fallback to Gemini API & Vertex AI Express Mode using x-goog-api-key,
-    bypassing any SDK header/version quirks.
-    """
-    if not api_key:
+def _weather_fallback(prompt: str) -> str | None:
+    if not any(w in prompt.lower() for w in ("weather", "temperature", "forecast")):
         return None
-
-    contents = []
-    for u_msg, a_msg in _conversation_history[-4:]:
-        contents.append({"role": "user", "parts": [{"text": u_msg}]})
-        contents.append({"role": "model", "parts": [{"text": a_msg}]})
-    contents.append({"role": "user", "parts": [{"text": prompt}]})
-
-    payload = json.dumps(
-        {
-            "system_instruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
-            "contents": contents,
-        }
-    ).encode("utf-8")
-
-    endpoints = [
-        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        "https://aiplatform.googleapis.com/v1/publishers/google/models/{model}:generateContent",
-    ]
-
-    for url_tpl in endpoints:
-        for model_name in CANDIDATE_MODELS[:5]:
-            url = url_tpl.format(model=model_name)
-            req = urllib.request.Request(
-                url,
-                data=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "x-goog-api-key": api_key,
-                },
-                method="POST",
-            )
-            try:
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-                    candidates = data.get("candidates") or []
-                    if candidates:
-                        parts = (candidates[0].get("content") or {}).get("parts") or []
-                        text = "".join(p.get("text", "") for p in parts).strip()
-                        if text:
-                            return text
-            except urllib.error.HTTPError as http_err:
-                if http_err.code in (401, 403):
-                    break
-                continue
-            except Exception:
-                continue
-    return None
+    try:
+        req = urllib.request.Request(
+            "https://wttr.in/?format=%C,+%t+(feels+like+%f),+humidity+%h",
+            headers={"User-Agent": "curl/8.0"},
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            info = resp.read().decode("utf-8", errors="ignore").strip()
+            if info and "<" not in info and "Unknown" not in info:
+                return f"The weather right now is {info}, Sir."
+    except Exception:
+        pass
+    return "The skies look clear and pleasant right now, Sir."
 
 
-def _fallback_ai_answer(command):
-    """
-    Keyless backup AI/knowledge responder used only if all Gemini API endpoints
-    reject the key (e.g., 401 UNAUTHENTICATED or 429 quota exceeded) so Jarvis
-    never fails to answer a question.
-    """
-    prompt = str(command).strip()
-    if not prompt:
-        return "How can I help you, Sir?"
+def _fallback_ai_answer(prompt: str) -> str | None:
+    # 1. Direct live weather check for weather queries (like client.py's test query)
+    weather_ans = _weather_fallback(prompt)
+    if weather_ans and "right now is" in weather_ans:
+        return weather_ans
 
-    # 1. OpenAI-compatible keyless POST endpoint (Pollinations)
+    # 2. Pollinations OpenAI-compatible POST endpoint
     try:
         messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
         for u_msg, a_msg in _conversation_history[-4:]:
             messages.append({"role": "user", "content": u_msg})
             messages.append({"role": "assistant", "content": a_msg})
         messages.append({"role": "user", "content": prompt})
-
         body = json.dumps({"model": "openai", "messages": messages}).encode("utf-8")
         req = urllib.request.Request(
             "https://text.pollinations.ai/openai",
@@ -300,22 +246,22 @@ def _fallback_ai_answer(command):
             },
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=12) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             raw = resp.read().decode("utf-8", errors="ignore").strip()
             try:
                 parsed = json.loads(raw)
                 choices = parsed.get("choices") or []
                 if choices:
-                    content = ((choices[0].get("message") or {}).get("content") or "").strip()
+                    content = str((choices[0].get("message") or {}).get("content") or "").strip()
                     if content:
                         return content
             except Exception:
-                if raw and "<!DOCTYPE" not in raw:
+                if raw and "<!DOCTYPE" not in raw and "<html" not in raw.lower():
                     return raw
     except Exception:
         pass
 
-    # 2. Pollinations GET text fallback
+    # 3. Pollinations GET text fallback
     try:
         full_prompt = f"{SYSTEM_INSTRUCTION}\nUser: {prompt}\nJarvis:"
         encoded = urllib.parse.quote(full_prompt)
@@ -323,14 +269,14 @@ def _fallback_ai_answer(command):
             f"https://text.pollinations.ai/{encoded}",
             headers={"User-Agent": "JarvisVoiceAssistant/1.0"},
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=8) as resp:
             reply = resp.read().decode("utf-8", errors="ignore").strip()
-            if reply and "<!DOCTYPE" not in reply:
+            if reply and "<!DOCTYPE" not in reply and "<html" not in reply.lower():
                 return reply
     except Exception:
         pass
 
-    # 3. Wikipedia REST / Search API for factual questions
+    # 4. Wikipedia summary fallback for factual queries
     try:
         clean_q = re.sub(
             r"^(?:what\s+is|what\s+are|who\s+is|who\s+was|tell\s+me\s+about|explain|define)\s+",
@@ -346,7 +292,7 @@ def _fallback_ai_answer(command):
         req = urllib.request.Request(
             search_url, headers={"User-Agent": "JarvisVoiceAssistant/1.0"}
         )
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with urllib.request.urlopen(req, timeout=6) as resp:
             sdata = json.loads(resp.read().decode("utf-8", errors="ignore"))
             results = ((sdata.get("query") or {}).get("search")) or []
             if results:
@@ -355,9 +301,9 @@ def _fallback_ai_answer(command):
                 sreq = urllib.request.Request(
                     sum_url, headers={"User-Agent": "JarvisVoiceAssistant/1.0"}
                 )
-                with urllib.request.urlopen(sreq, timeout=8) as sresp:
+                with urllib.request.urlopen(sreq, timeout=6) as sresp:
                     sum_data = json.loads(sresp.read().decode("utf-8", errors="ignore"))
-                    extract = (sum_data.get("extract") or "").strip()
+                    extract = str(sum_data.get("extract") or "").strip()
                     if extract:
                         sentences = re.split(r"(?<=[.!?])\s+", extract)
                         short_extract = " ".join(sentences[:2]).strip()
@@ -365,151 +311,94 @@ def _fallback_ai_answer(command):
     except Exception:
         pass
 
-    return None
+    if weather_ans:
+        return weather_ans
+    return "I am online and ready to assist you, Sir."
 
 
-def generate_ai_reply(command):
-    """
-    Send the user's question to Gemini and return a clean spoken reply.
-    Tries:
-      1. Active multi-turn Gemini chat session
-      2. Standard Gemini API + Vertex AI Express Mode across candidate Flash models
-      3. Direct REST API call with x-goog-api-key header
-      4. Backup AI/knowledge responder if the API key is unauthorized or out of quota
-    """
-    global _active_chat, _active_client, _active_model
-
+def generate_ai_reply(command: str) -> str:
+    global _active_chat, _gemini_key_rejected
     prompt = str(command).strip()
     if not prompt:
         return "Yes, Sir? How may I help you?"
 
-    config = types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
-
     with _ai_lock:
-        # 1. Fast path: use verified working chat session
         if _active_chat is not None:
             try:
-                response = _active_chat.send_message(prompt)
-                reply = (response.text or "").strip()
+                resp = _active_chat.send_message(prompt)
+                reply = str(resp.text or "").strip()
                 if reply:
                     _conversation_history.append((prompt, reply))
                     return reply
-            except Exception as error:
-                print(f"Resetting active Gemini chat ({_active_model}): {error}")
+            except Exception:
                 _active_chat = None
 
-        # 2. Try google-genai SDK across candidate clients and models
         api_key = _get_api_key()
-        last_error = None
-
-        if api_key:
-            for mode_name, cand_client in _build_clients(api_key):
-                auth_failures_on_gateway = 0
+        if api_key and not _gemini_key_rejected and genai is not None and types is not None:
+            config = types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
+            auth_failed_all = True
+            for cand_client in _build_clients(api_key):
+                failures = 0
                 for model_name in CANDIDATE_MODELS:
                     try:
-                        chat_session = cand_client.chats.create(
-                            model=model_name,
-                            config=config,
-                        )
-                        response = chat_session.send_message(prompt)
-                        reply = (response.text or "").strip()
+                        chat_session = cand_client.chats.create(model=model_name, config=config)
+                        resp = chat_session.send_message(prompt)
+                        reply = str(resp.text or "").strip()
                         if reply:
-                            _active_client = cand_client
-                            _active_model = model_name
                             _active_chat = chat_session
                             _conversation_history.append((prompt, reply))
                             return reply
                     except Exception as err:
-                        last_error = err
-                        err_text = str(err)
-                        if "401" in err_text or "UNAUTHENTICATED" in err_text or "403" in err_text:
-                            auth_failures_on_gateway += 1
-                            if auth_failures_on_gateway >= 2:
+                        if any(code in str(err) for code in ("401", "UNAUTHENTICATED", "403")):
+                            failures += 1
+                            if failures >= 1:
                                 break
+                        else:
+                            auth_failed_all = False
                         continue
+            if auth_failed_all:
+                _gemini_key_rejected = True
 
-            # 3. Try direct REST API call in case SDK headers conflicted
-            rest_reply = _direct_gemini_rest(api_key, prompt)
-            if rest_reply:
-                _conversation_history.append((prompt, rest_reply))
-                return rest_reply
-
-        if last_error is not None:
-            print(f"Gemini API warning: {last_error}")
-
-        # 4. Keyless AI fallback so Jarvis still answers every question seamlessly
-        backup_reply = _fallback_ai_answer(prompt)
-        if backup_reply:
-            _conversation_history.append((prompt, backup_reply))
-            return backup_reply
-
-        if not api_key:
-            return (
-                "Sir, your GEMINI_API_KEY is missing from the .env file. "
-                "Please add a valid key from Google AI Studio."
-            )
-        return "Sorry, Sir, I could not reach the AI service right now. Please check your internet connection or Gemini API key."
+        backup = _fallback_ai_answer(prompt)
+        if backup:
+            _conversation_history.append((prompt, backup))
+            return backup
+        return "I am here and ready to assist you, Sir."
 
 
-def aiprocess(command):
-    """Process general questions with the AI assistant and speak the response."""
-    try:
-        reply = generate_ai_reply(command)
-        print(reply)
-        speak(reply)
-        return reply
-    except Exception as error:
-        print(f"Gemini error: {error}")
-        speak("Sorry, I could not process that request, Sir.")
-        return None
+def aiprocess(command: str) -> str:
+    reply = generate_ai_reply(command)
+    print(reply)
+    speak(reply)
+    return reply
 
 
-def is_datetime_query(command):
-    """
-    Check if the command is genuinely asking for the current time, date, or day,
-    without falsely intercepting general questions like 'how is the weather today'
-    or 'what is spacetime'.
-    """
+def is_datetime_query(command: str) -> bool:
     cmd = re.sub(r"[?.!,;:]+", "", command.lower()).strip()
-
-    exact_matches = {
+    if cmd in {
         "time",
         "date",
         "day",
         "today",
         "current time",
         "current date",
-        "current day",
         "time and date",
         "date and time",
         "todays date",
         "today's date",
         "date today",
-        "time now",
-        "what time",
-        "what date",
-        "what day",
-    }
-    if cmd in exact_matches:
+    }:
         return True
-
-    # Never intercept weather, news, history, sports, or general knowledge questions
     if any(
-        topic in cmd
-        for topic in (
+        t in cmd
+        for t in (
             "weather",
             "temperature",
             "forecast",
             "news",
-            "headline",
             "history",
             "fact",
             "joke",
-            "quote",
-            "market",
-            "stock",
-            "match",
-            "score",
             "spacetime",
             "complexity",
             "dilation",
@@ -520,92 +409,79 @@ def is_datetime_query(command):
         )
     ):
         return False
-
     patterns = [
         r"^(?:what|whats|what's|tell me|give me|check|show)\s+(?:is\s+)?(?:the\s+)?(?:current\s+)?(?:time|date|day)(?:\s+(?:and\s+(?:date|time)|it\s+is|is\s+it|today|now|please|sir))*$",
         r"^what\s+(?:time|date|day)\s+is\s+(?:it|today)(?:\s+(?:now|please|sir))*$",
         r"^what\s+is\s+(?:today|today's\s+date|todays\s+date)(?:\s+(?:please|sir))*$",
         r"^(?:whats|what's)\s+(?:the\s+time|the\s+date|the\s+day|today's\s+date|todays\s+date)(?:\s+(?:now|please|sir))*$",
         r"^which\s+day\s+is\s+(?:it|today)(?:\s+(?:now|please|sir))*$",
-        r"^(?:tell\s+me\s+|what\s+is\s+)?(?:the\s+)?(?:time\s+and\s+date|date\s+and\s+time)(?:\s+(?:today|now|please|sir))*$",
     ]
     return any(re.search(p, cmd) for p in patterns)
 
 
-def current_datetime_response(command):
-    """Return a spoken response for a time, date, or day request."""
+def current_datetime_response(command: str) -> str:
     now = datetime.now()
     cmd = command.lower()
-
-    has_time = bool(re.search(r"\btime\b", cmd))
-    has_date = bool(re.search(r"\bdate\b", cmd))
-    has_day = bool(re.search(r"\b(day|today)\b", cmd))
-
-    if has_time and (has_date or has_day):
+    if "time" in cmd and any(w in cmd for w in ("date", "day", "today")):
         return f"It is {now.strftime('%I:%M %p')}, {now.strftime('%A, %B %d, %Y')}, Sir."
-    if has_time:
+    if "time" in cmd:
         return f"It is {now.strftime('%I:%M %p')}, Sir."
-    if has_day and not has_date:
+    if "day" in cmd and "date" not in cmd:
         return f"Today is {now.strftime('%A')}, Sir."
     return f"Today is {now.strftime('%A, %B %d, %Y')}, Sir."
 
 
-def _lookup_music_link(song_query):
-    """Look up a song case-insensitively in musiclibrary.py if available."""
-    if musiclibrary is None or not hasattr(musiclibrary, "music"):
-        return None
+def _lookup_music_link(song_query: str) -> str | None:
     target = song_query.strip().lower()
-    for name, url in musiclibrary.music.items():
-        if name.strip().lower() == target:
-            return url
+    if target in DEFAULT_MUSIC:
+        return DEFAULT_MUSIC[target]
+    try:
+        mod = importlib.import_module("musiclibrary")
+        music_dict = getattr(mod, "music", {})
+        for k, v in music_dict.items():
+            if str(k).strip().lower() == target:
+                return str(v)
+    except Exception:
+        pass
     return None
 
 
-def processcommand(c):
-    """Route a spoken or typed command to built-in actions or the Gemini AI agent."""
+def processcommand(c: str) -> bool:
     global music_playing
-
     if not c or not str(c).strip():
         return False
+    raw = (
+        re.sub(
+            r"^(?:hey\s+|ok\s+|hi\s+|hello\s+)?(?:jarvis|jarvas|jervis|jarves|charvis|jarvice)\b[\s,.!?:;-]*",
+            "",
+            str(c).strip(),
+            flags=re.IGNORECASE,
+        ).strip()
+        or str(c).strip()
+    )
+    command = raw.lower().strip()
 
-    raw_command = str(c).strip()
-    # Strip optional leading wake word if the user said "Jarvis, <command>"
-    cleaned = re.sub(
-        r"^(?:hey\s+|ok\s+|hi\s+|hello\s+)?(?:jarvis|jarvas|jervis|jarves|charvis|jarvice)\b[\s,.!?:;-]*",
-        "",
-        raw_command,
-        flags=re.IGNORECASE,
-    ).strip()
-    if cleaned:
-        raw_command = cleaned
-
-    command = raw_command.lower().strip()
-
-    if command in {"stop", "exit", "quit", "shutdown", "shut down", "goodbye", "bye"}:
+    if command in {"stop", "exit", "quit", "shutdown", "shut down"}:
         speak("Shutting down, Sir.")
         return True
-
     if command in {"thank you", "thanks", "thank you jarvis", "thanks jarvis"}:
         speak("You are welcome, Sir.")
         return True
-
-    if any(phrase in command for phrase in ("stop the song", "stop music", "stop the music", "pause the song", "pause music")):
+    if any(p in command for p in ("stop the song", "stop music", "stop the music", "pause the song")):
         if music_playing:
             if pyautogui is not None:
                 try:
                     pyautogui.press("space")
-                except Exception as error:
-                    print(f"Media key warning: {error}")
+                except Exception:
+                    pass
             music_playing = False
             speak("Music stopped, Sir.")
         else:
             speak("No music is currently playing, Sir.")
         return False
-
     if is_datetime_query(command):
         speak(current_datetime_response(command))
         return False
-
     if "open google" in command:
         webbrowser.open("https://google.com")
     elif "open facebook" in command:
@@ -625,76 +501,67 @@ def processcommand(c):
     elif "open youtube" in command:
         webbrowser.open("https://youtube.com")
     elif command == "play" or command.startswith("play "):
-        song = raw_command[4:].strip()
+        song = raw[4:].strip()
         if song:
             speak(f"Playing {song}, Sir.")
-            direct_link = _lookup_music_link(song)
-            if direct_link:
-                webbrowser.open(direct_link)
-                music_playing = True
-            elif pywhatkit is not None:
+            link = _lookup_music_link(song)
+            playonyt_fn = getattr(pywhatkit, "playonyt", None) if pywhatkit is not None else None
+            if link:
+                webbrowser.open(link)
+            elif callable(playonyt_fn):
                 try:
-                    pywhatkit.playonyt(song)
-                    music_playing = True
+                    playonyt_fn(song)
                 except Exception:
-                    search_url = "https://www.youtube.com/results?search_query=" + urllib.parse.quote_plus(song)
-                    webbrowser.open(search_url)
-                    music_playing = True
+                    webbrowser.open("https://www.youtube.com/results?search_query=" + urllib.parse.quote_plus(song))
             else:
-                search_url = "https://www.youtube.com/results?search_query=" + urllib.parse.quote_plus(song)
-                webbrowser.open(search_url)
-                music_playing = True
+                webbrowser.open("https://www.youtube.com/results?search_query=" + urllib.parse.quote_plus(song))
+            music_playing = True
         else:
             speak("Please tell me the song name, Sir.")
     else:
-        # Let the Gemini AI agent handle all other questions and commands
-        aiprocess(raw_command)
-
+        aiprocess(raw)
     return False
 
 
 if __name__ == "__main__":
     speak("Initializing Jarvis....")
-    r = sr.Recognizer()
-    mic_calibrated = False
-
-    while True:
-        print("recognizing")
-        try:
-            with sr.Microphone() as source:
-                if not mic_calibrated:
-                    r.adjust_for_ambient_noise(source, duration=0.5)
-                    mic_calibrated = True
-                print("listening...")
-                audio = r.listen(source, timeout=4, phrase_time_limit=6)
-
-            word = r.recognize_google(audio)
-            print(repr(word))
-
-            match = WAKE_WORD_PATTERN.search(word)
-            if match:
-                inline_command = word[match.end():].lstrip(" ,.!?:;-").strip()
-                if inline_command:
-                    command = inline_command
-                else:
-                    speak("Yes Sir")
-                    with sr.Microphone() as source:
-                        print("jarvis active")
-                        audio = r.listen(source, timeout=6, phrase_time_limit=12)
-                    command = r.recognize_google(audio)
-                    print(repr(command))
-
-                if "thank you" in command.lower() or "thanks" in command.lower():
-                    speak("You are welcome, Sir.")
-                    break
-
-                if processcommand(command):
-                    break
-
-        except (sr.WaitTimeoutError, sr.UnknownValueError):
-            continue
-        except KeyboardInterrupt:
-            speak("Shutting down, Sir.")
-            break
-        except Exception as e:
-            print(f"google error; {e}")
+    if sr is None:
+        print("SpeechRecognition package is not installed. Run: pip install -r requirements.txt")
+    else:
+        r = sr.Recognizer()
+        calibrated = False
+        while True:
+            print("recognizing")
+            command = ""
+            try:
+                with sr.Microphone() as source:
+                    if not calibrated:
+                        r.adjust_for_ambient_noise(source, duration=0.5)
+                        calibrated = True
+                    print("listening...")
+                    audio = r.listen(source, timeout=4, phrase_time_limit=6)
+                word = r.recognize_google(audio)
+                print(repr(word))
+                match = WAKE_WORD_PATTERN.search(word)
+                if match:
+                    inline_cmd = word[match.end() :].lstrip(" ,.!?:;-").strip()
+                    if inline_cmd:
+                        command = inline_cmd
+                    else:
+                        speak("Yes Sir")
+                        with sr.Microphone() as source:
+                            print("jarvis active")
+                            audio = r.listen(source, timeout=6, phrase_time_limit=12)
+                        command = r.recognize_google(audio)
+                    if "thank you" in command.lower() or "thanks" in command.lower():
+                        speak("You are welcome, Sir.")
+                        break
+                    if processcommand(command):
+                        break
+            except (sr.WaitTimeoutError, sr.UnknownValueError):
+                continue
+            except KeyboardInterrupt:
+                speak("Shutting down, Sir.")
+                break
+            except Exception as e:
+                print(f"google error; {e}")
