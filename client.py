@@ -1,17 +1,15 @@
-from google import genai
-import os
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-chat = client.chats.create(model="gemini-3.6-flash")
+from main import generate_ai_reply
 
 
 def aiprocess(command):
     try:
-        response = chat.send_message(command)
-        reply = response.text or "I could not generate a response."
+        reply = generate_ai_reply(command)
         print(reply)
-        
+        return reply
     except Exception as error:
         print(f"Gemini error: {error}")
+        return None
 
 
-aiprocess('how is the weather today?')
+if __name__ == "__main__":
+    aiprocess("how is the weather today?")

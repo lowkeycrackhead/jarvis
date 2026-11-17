@@ -6,3 +6,4 @@ pygame
 pywhatkit
 python-dotenv
 flask
+pyautogui
