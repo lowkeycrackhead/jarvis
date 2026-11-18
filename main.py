@@ -1,4 +1,5 @@
 # pyright: reportMissingImports=false, reportMissingModuleSource=false, reportOptionalMemberAccess=false, reportAttributeAccessIssue=false, reportGeneralTypeIssues=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+import glob
 import importlib
 import json
 import os
@@ -119,6 +120,7 @@ WAKE_WORD_PATTERN = re.compile(
 )
 
 music_playing: bool = False
+spotify_playing: bool = False
 recognizer = sr.Recognizer()
 _mixer_initialized: bool = False
 _ai_lock = threading.Lock()
@@ -436,8 +438,199 @@ def _lookup_music_link(song_query: str) -> str | None:
     return None
 
 
+def _is_spotify_running() -> bool:
+    """Check if Spotify.exe is currently running on Windows."""
+    if os.name != "nt":
+        return False
+    try:
+        out = subprocess.check_output(
+            ["tasklist", "/FI", "IMAGENAME eq Spotify.exe"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        return "spotify.exe" in out.lower()
+    except Exception:
+        return False
+
+
+def _find_spotify_executable() -> str | None:
+    """Locate Spotify.exe or Spotify.lnk across standard, Store, and Start Menu paths on Windows."""
+    if os.name != "nt":
+        return None
+    candidates = [
+        os.path.expandvars(r"%APPDATA%\Spotify\Spotify.exe"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WindowsApps\Spotify.exe"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Spotify\Spotify.exe"),
+        os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Spotify.lnk"),
+        os.path.expandvars(r"%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs\Spotify.lnk"),
+    ]
+    pkg_matches = glob.glob(
+        os.path.expandvars(r"%LOCALAPPDATA%\Packages\SpotifyAB.SpotifyMusic*\LocalCache\Roaming\Spotify\Spotify.exe")
+    )
+    candidates.extend(pkg_matches)
+    for path in candidates:
+        if path and os.path.exists(path):
+            return path
+    return None
+
+
+def _focus_spotify_window() -> None:
+    """Bring the Spotify desktop window to the foreground on Windows."""
+    if os.name != "nt":
+        return
+    try:
+        subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-WindowStyle",
+                "Hidden",
+                "-Command",
+                "(New-Object -ComObject WScript.Shell).AppActivate('Spotify') | Out-Null",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+        )
+    except Exception:
+        pass
+
+
+def _launch_spotify_app(uri: str | None = None) -> bool:
+    """
+    Reliably launch and focus the pre-installed Spotify desktop app on Windows
+    using executable paths, Start Menu AppID, or Windows Search fallback.
+    """
+    if os.name != "nt":
+        webbrowser.open(uri or "spotify:")
+        return True
+
+    launched = False
+
+    # 1. Try direct executable or shortcut path first
+    exe_path = _find_spotify_executable()
+    if exe_path:
+        try:
+            if exe_path.lower().endswith(".exe"):
+                args = [exe_path] + ([f"--uri={uri}"] if uri else [])
+                subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                startfile_fn = getattr(os, "startfile", None)
+                if callable(startfile_fn):
+                    startfile_fn(exe_path)
+            launched = True
+        except Exception:
+            pass
+
+    # 2. Try launching via Windows Start Menu AppsFolder (works for Microsoft Store & Desktop installs)
+    if not launched:
+        try:
+            ps_cmd = (
+                "$app = Get-StartApps | Where-Object { $_.Name -like '*Spotify*' } | Select-Object -First 1; "
+                "if ($app) { Start-Process ('shell:AppsFolder\\' + $app.AppID) }"
+            )
+            subprocess.run(
+                ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_cmd],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=4,
+            )
+        except Exception:
+            pass
+
+    time.sleep(1.2)
+
+    # 3. If Spotify.exe still isn't running, open it via Windows Start Menu key + typing "spotify"
+    if not _is_spotify_running() and pyautogui is not None:
+        try:
+            pyautogui.press("win")
+            time.sleep(0.7)
+            pyautogui.write("spotify", interval=0.05)
+            time.sleep(0.8)
+            pyautogui.press("enter")
+            launched = True
+        except Exception:
+            pass
+
+    _focus_spotify_window()
+    return launched
+
+
+def open_spotify_app() -> None:
+    """Open or focus the installed Spotify desktop application."""
+    speak("Opening Spotify, Sir.")
+    _launch_spotify_app()
+
+
+def play_on_spotify(song_query: str) -> None:
+    """
+    Open the pre-installed Spotify desktop app, search for the song via Spotify's
+    Ctrl+K Quick Search spotlight modal, and play the #1 top result directly via Shift+Enter.
+    """
+    global music_playing, spotify_playing
+    song = song_query.strip()
+    if not song:
+        speak("Please tell me the song name to play on Spotify, Sir.")
+        return
+
+    speak(f"Playing {song} on Spotify, Sir.")
+    was_running = _is_spotify_running()
+
+    # Launch or focus the Spotify desktop app
+    _launch_spotify_app()
+
+    if pyautogui is not None:
+        # Wait for the Spotify desktop window to be ready and focused
+        time.sleep(2.0 if was_running else 5.0)
+        _focus_spotify_window()
+        time.sleep(0.4)
+        try:
+            # Open Spotify Desktop's built-in Quick Search modal (Ctrl+K)
+            pyautogui.hotkey("ctrl", "k")
+            time.sleep(0.6)
+            # Clear any existing text in Quick Search and type the song query
+            pyautogui.hotkey("ctrl", "a")
+            time.sleep(0.1)
+            pyautogui.press("backspace")
+            time.sleep(0.1)
+            pyautogui.write(song, interval=0.04)
+            # Wait for Spotify to populate and auto-highlight the #1 top matching song
+            time.sleep(1.8)
+            # Shift+Enter immediately plays the #1 highlighted top result
+            pyautogui.hotkey("shift", "enter")
+            time.sleep(0.3)
+            # Close the Ctrl+K search modal if it remains open
+            pyautogui.press("esc")
+        except Exception:
+            pass
+
+    music_playing = True
+    spotify_playing = True
+
+
+def _extract_spotify_song(raw_command: str) -> str | None:
+    """
+    If the command asks to play a song in/on Spotify, return the extracted song name
+    (or '' if no song name was given). Return None if it is not a Spotify play command.
+    """
+    patterns = [
+        r"^(?:open\s+spotify\s+and\s+)?play\s+(.+?)\s+(?:in|on|from|using)\s+spotify$",
+        r"^(?:open\s+spotify\s+and\s+)?play\s+(?:in|on|from|using)\s+spotify\s+(.+)$",
+        r"^open\s+spotify\s+and\s+play\s+(.+)$",
+        r"^spotify\s+play\s+(.+)$",
+    ]
+    for pat in patterns:
+        m = re.match(pat, raw_command.strip(), flags=re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+
+    if re.match(r"^play\s+(?:in|on|from)?\s*spotify$", raw_command.strip(), flags=re.IGNORECASE):
+        return ""
+    return None
+
+
 def processcommand(c: str) -> bool:
-    global music_playing
+    global music_playing, spotify_playing
     if not c or not str(c).strip():
         return False
     raw = (
@@ -457,14 +650,29 @@ def processcommand(c: str) -> bool:
     if command in {"thank you", "thanks", "thank you jarvis", "thanks jarvis"}:
         speak("You are welcome, Sir.")
         return True
-    if any(p in command for p in ("stop the song", "stop music", "stop the music", "pause the song")):
-        if music_playing:
+    if any(
+        p in command
+        for p in (
+            "stop the song",
+            "stop music",
+            "stop the music",
+            "pause the song",
+            "pause music",
+            "stop spotify",
+            "pause spotify",
+        )
+    ):
+        if music_playing or "spotify" in command:
             if pyautogui is not None:
                 try:
-                    pyautogui.press("space")
+                    if spotify_playing or "spotify" in command:
+                        pyautogui.press("playpause")
+                    else:
+                        pyautogui.press("space")
                 except Exception:
                     pass
             music_playing = False
+            spotify_playing = False
             speak("Music stopped, Sir.")
         else:
             speak("No music is currently playing, Sir.")
@@ -472,7 +680,16 @@ def processcommand(c: str) -> bool:
     if is_datetime_query(command):
         speak(current_datetime_response(command))
         return False
-    if "open google" in command:
+
+    # Check for "play [song] in/on spotify" or "open spotify and play [song]" first
+    spotify_song = _extract_spotify_song(raw)
+    if spotify_song is not None:
+        play_on_spotify(spotify_song)
+        return False
+
+    if "open spotify" in command or "launch spotify" in command or "start spotify" in command:
+        open_spotify_app()
+    elif "open google" in command:
         webbrowser.open("https://google.com")
     elif "open facebook" in command:
         webbrowser.open("https://facebook.com")
@@ -506,6 +723,7 @@ def processcommand(c: str) -> bool:
             else:
                 webbrowser.open("https://www.youtube.com/results?search_query=" + urllib.parse.quote_plus(song))
             music_playing = True
+            spotify_playing = False
         else:
             speak("Please tell me the song name, Sir.")
     else:
