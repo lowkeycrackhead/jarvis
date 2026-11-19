@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
     Zero-manual-setup launcher for J.A.R.V.I.S. on Windows.
-    Installs Python dependencies, installs Ollama if missing, pulls the local model,
+    Installs Python dependencies, installs Ollama if missing, enables Intel Arc/iGPU
+    Vulkan acceleration automatically when detected, pulls the local model,
     and launches the J.A.R.V.I.S. Web HUD (or voice-only mode with -VoiceOnly).
 #>
 param(
@@ -92,7 +93,23 @@ if (Test-Path $envFile) {
     }
 }
 
-# 4. Auto-install Ollama if not present
+# 4. Auto-enable Ollama Vulkan + iGPU acceleration on Intel Arc / Intel GPU machines (without NVIDIA)
+try {
+    $gpus = (Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue).Name -join " | "
+    if ($gpus -match "Intel" -and $gpus -notmatch "NVIDIA") {
+        $env:OLLAMA_VULKAN = "1"
+        $env:OLLAMA_IGPU_ENABLE = "1"
+        if ([Environment]::GetEnvironmentVariable("OLLAMA_VULKAN", "User") -ne "1") {
+            [Environment]::SetEnvironmentVariable("OLLAMA_VULKAN", "1", "User")
+        }
+        if ([Environment]::GetEnvironmentVariable("OLLAMA_IGPU_ENABLE", "User") -ne "1") {
+            [Environment]::SetEnvironmentVariable("OLLAMA_IGPU_ENABLE", "1", "User")
+        }
+        Write-Ok "Intel GPU detected ($gpus) — enabled Ollama Vulkan GPU acceleration."
+    }
+} catch {}
+
+# 5. Auto-install Ollama if not present
 function Find-OllamaExe {
     $cmd = Get-Command ollama -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
@@ -121,7 +138,7 @@ if (-not $ollamaExe) {
 if ($ollamaExe) {
     Write-Ok "Ollama ready: $ollamaExe"
 
-    # 5. Start Ollama server if not already listening
+    # 6. Start Ollama server if not already listening
     $ollamaUp = $false
     try {
         $null = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -TimeoutSec 2
@@ -166,7 +183,7 @@ if ($ollamaExe) {
     Write-Warn "Could not install Ollama automatically. Jarvis will still launch using Gemini/backup AI."
 }
 
-# 6. Launch Jarvis
+# 7. Launch Jarvis
 if ($VoiceOnly) {
     Write-Step "Launching J.A.R.V.I.S. Voice Mode (main.py)..."
     & $venvPy (Join-Path $PSScriptRoot "main.py")
