@@ -2,7 +2,6 @@
   "python.analysis.extraPaths": [
     "."
   ],
-  "python.analysis.stubPath": "typings",
   "python.analysis.typeCheckingMode": "basic",
   "python.analysis.diagnosticSeverityOverrides": {
     "reportMissingModuleSource": "none",

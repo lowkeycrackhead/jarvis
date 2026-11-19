@@ -1,4 +1,5 @@
 # pyright: reportMissingImports=false, reportMissingModuleSource=false, reportOptionalMemberAccess=false, reportAttributeAccessIssue=false, reportGeneralTypeIssues=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import glob
 import importlib
 import json
@@ -97,22 +98,30 @@ DEFAULT_MUSIC: dict[str, str] = {
     "headliner": "https://youtu.be/GE6w7DRyqcM",
 }
 
+# Fast Flash models prioritized for low-latency voice responses
 CANDIDATE_MODELS: list[str] = list(
     dict.fromkeys(
         m
         for m in [
             os.getenv("GEMINI_MODEL", "").strip(),
-            "gemini-3.6-flash",
-            "gemini-3.7-flash",
             "gemini-3.5-flash-lite",
-            "gemini-3.8-flash",
-            "gemini-2.5-flash",
             "gemini-2.5-flash-lite",
-            "gemini-2.0-flash",
+            "gemini-3.6-flash",
+            "gemini-2.5-flash",
+            "gemini-3.7-flash",
+            "gemini-3.8-flash",
         ]
         if m
     )
 )
+
+# Local Ollama configuration (defaults to llama3.2:3b, ideal for 16 GB RAM + Intel Arc)
+DEFAULT_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b").strip() or "llama3.2:3b"
+OLLAMA_BASE_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+# AI_PROVIDER: "auto" (Ollama local if running -> Gemini -> backup), "ollama", or "gemini"
+ai_provider: str = os.getenv("AI_PROVIDER", "auto").strip().lower() or "auto"
+if ai_provider not in {"auto", "ollama", "gemini"}:
+    ai_provider = "auto"
 
 WAKE_WORD_PATTERN = re.compile(
     r"\b(jarvis|jarvas|jervis|jarves|charvis|jarvice|gervais|jarvi)\b",
@@ -126,7 +135,61 @@ _mixer_initialized: bool = False
 _ai_lock = threading.Lock()
 _active_chat: Any = None
 _gemini_key_rejected: bool = False
+_gemini_checked_key: str = ""
+_resolved_ollama_model: str | None = None
+_ollama_last_probe: float = 0.0
 _conversation_history: list[tuple[str, str]] = []
+
+# Cooperative task cancellation event (triggered by server.py's /api/stop endpoint)
+_cancel_event = threading.Event()
+
+
+def set_ai_provider(mode: str) -> str:
+    """Switch active AI routing mode between 'auto', 'ollama', and 'gemini'."""
+    global ai_provider
+    clean = str(mode or "").strip().lower()
+    if clean in {"auto", "ollama", "gemini"}:
+        ai_provider = clean
+    return ai_provider
+
+
+def get_ai_status() -> dict[str, Any]:
+    """Return current AI engine configuration and detected Ollama model."""
+    return {
+        "provider": ai_provider,
+        "ollama_model": _resolved_ollama_model or DEFAULT_OLLAMA_MODEL,
+        "ollama_ready": bool(_probe_ollama_model(force=False)),
+    }
+
+
+def cancel_current_task() -> None:
+    """Signal any in-progress command, speech, or wait loop to abort immediately."""
+    _cancel_event.set()
+    if _mixer_initialized and mixer is not None:
+        try:
+            mixer.music.stop()
+        except Exception:
+            pass
+
+
+def clear_cancel() -> None:
+    """Reset the cancellation flag before starting a new command."""
+    _cancel_event.clear()
+
+
+def is_cancelled() -> bool:
+    """Return True if the user requested to cancel the active task."""
+    return _cancel_event.is_set()
+
+
+def _cancellable_sleep(seconds: float) -> bool:
+    """Sleep in short increments; returns True if cancelled mid-sleep."""
+    deadline = time.monotonic() + max(0.0, seconds)
+    while time.monotonic() < deadline:
+        if _cancel_event.is_set():
+            return True
+        time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+    return _cancel_event.is_set()
 
 
 def _ensure_mixer() -> bool:
@@ -172,7 +235,108 @@ def _build_clients(api_key: str) -> list[Any]:
     return clients
 
 
+def _get_fast_config() -> Any:
+    """Build a low-latency GenerateContentConfig (short output, minimal thinking)."""
+    kwargs: dict[str, Any] = {
+        "system_instruction": SYSTEM_INSTRUCTION,
+        "max_output_tokens": 180,
+        "temperature": 0.4,
+    }
+    try:
+        if hasattr(types, "ThinkingConfig"):
+            kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+    except Exception:
+        pass
+    try:
+        return types.GenerateContentConfig(**kwargs)
+    except Exception:
+        return types.GenerateContentConfig(
+            system_instruction=SYSTEM_INSTRUCTION,
+            max_output_tokens=180,
+        )
+
+
+def _probe_ollama_model(force: bool = False) -> str | None:
+    """
+    Check if local Ollama is running at localhost:11434 and return the best available
+    installed model (preferring OLLAMA_MODEL / llama3.2:3b / gemma3:4b / phi4-mini).
+    Caches probe result for 15 seconds to keep voice replies instant.
+    """
+    global _resolved_ollama_model, _ollama_last_probe
+    now = time.monotonic()
+    if not force and (now - _ollama_last_probe) < 15.0:
+        return _resolved_ollama_model
+
+    _ollama_last_probe = now
+    preferred = os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL).strip() or DEFAULT_OLLAMA_MODEL
+    try:
+        req = urllib.request.Request(f"{OLLAMA_BASE_URL}/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=0.8) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            installed = [str(m.get("name", "")).strip() for m in (data.get("models") or []) if m.get("name")]
+            if not installed:
+                _resolved_ollama_model = None
+                return None
+
+            # Match preferred model first, then fast 3B/4B voice models, then first installed model
+            priority = [preferred, "llama3.2:3b", "gemma3:4b", "phi4-mini", "llama3.2:1b"]
+            for target in priority:
+                t_low = target.lower()
+                for name in installed:
+                    if name.lower() == t_low or name.lower().startswith(t_low + ":"):
+                        _resolved_ollama_model = name
+                        return name
+            _resolved_ollama_model = installed[0]
+            return _resolved_ollama_model
+    except Exception:
+        _resolved_ollama_model = None
+        return None
+
+
+def _ask_ollama(prompt: str) -> str | None:
+    """Query local Ollama (/api/chat) with fast voice settings and keep_alive."""
+    if is_cancelled():
+        return None
+    model = _probe_ollama_model(force=False)
+    if not model:
+        return None
+    try:
+        messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
+        for u_msg, a_msg in _conversation_history[-4:]:
+            messages.append({"role": "user", "content": u_msg})
+            messages.append({"role": "assistant", "content": a_msg})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "keep_alive": "10m",
+            "options": {
+                "num_predict": 160,
+                "temperature": 0.4,
+            },
+        }
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            f"{OLLAMA_BASE_URL}/api/chat",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=18) as resp:
+            parsed = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            content = str((parsed.get("message") or {}).get("content") or "").strip()
+            if content:
+                return content
+    except Exception as err:
+        print(f"Ollama warning ({model}): {err}")
+    return None
+
+
 def speak(text: str) -> None:
+    if is_cancelled():
+        return
     clean = re.sub(r"[*_#~>`]+", " ", str(text or ""))
     clean = re.sub(r"\s+", " ", clean).strip()
     if not clean:
@@ -185,10 +349,15 @@ def speak(text: str) -> None:
         fd, temp_path = tempfile.mkstemp(prefix="jarvis_response_", suffix=".mp3", dir=BASE_DIR)
         os.close(fd)
         gTTS(text=clean, lang="en", slow=False).save(temp_path)
+        if is_cancelled():
+            return
         mixer.music.load(temp_path)
         mixer.music.play()
         while mixer.music.get_busy():
-            time.sleep(0.1)
+            if is_cancelled():
+                mixer.music.stop()
+                break
+            time.sleep(0.08)
         mixer.music.unload()
     except Exception:
         pass
@@ -199,7 +368,7 @@ def speak(text: str) -> None:
                     os.remove(temp_path)
                     break
                 except OSError:
-                    time.sleep(0.1)
+                    time.sleep(0.08)
 
 
 def _weather_fallback(prompt: str) -> str | None:
@@ -210,20 +379,16 @@ def _weather_fallback(prompt: str) -> str | None:
             "https://wttr.in/?format=%C,+%t+(feels+like+%f),+humidity+%h",
             headers={"User-Agent": "curl/8.0"},
         )
-        with urllib.request.urlopen(req, timeout=6) as resp:
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
             info = resp.read().decode("utf-8", errors="ignore").strip()
             if info and "<" not in info and "Unknown" not in info:
                 return f"The weather right now is {info}, Sir."
     except Exception:
         pass
-    return "The skies look clear and pleasant right now, Sir."
+    return None
 
 
-def _fallback_ai_answer(prompt: str) -> str | None:
-    weather_ans = _weather_fallback(prompt)
-    if weather_ans and "right now is" in weather_ans:
-        return weather_ans
-
+def _pollinations_post(prompt: str) -> str | None:
     try:
         messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
         for u_msg, a_msg in _conversation_history[-4:]:
@@ -240,7 +405,7 @@ def _fallback_ai_answer(prompt: str) -> str | None:
             },
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=5.5) as resp:
             raw = resp.read().decode("utf-8", errors="ignore").strip()
             try:
                 parsed = json.loads(raw)
@@ -254,21 +419,10 @@ def _fallback_ai_answer(prompt: str) -> str | None:
                     return raw
     except Exception:
         pass
+    return None
 
-    try:
-        full_prompt = f"{SYSTEM_INSTRUCTION}\nUser: {prompt}\nJarvis:"
-        encoded = urllib.parse.quote(full_prompt)
-        req = urllib.request.Request(
-            f"https://text.pollinations.ai/{encoded}",
-            headers={"User-Agent": "JarvisVoiceAssistant/1.0"},
-        )
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            reply = resp.read().decode("utf-8", errors="ignore").strip()
-            if reply and "<!DOCTYPE" not in reply and "<html" not in reply.lower():
-                return reply
-    except Exception:
-        pass
 
+def _wikipedia_summary(prompt: str) -> str | None:
     try:
         clean_q = re.sub(
             r"^(?:what\s+is|what\s+are|who\s+is|who\s+was|tell\s+me\s+about|explain|define)\s+",
@@ -284,7 +438,7 @@ def _fallback_ai_answer(prompt: str) -> str | None:
         req = urllib.request.Request(
             search_url, headers={"User-Agent": "JarvisVoiceAssistant/1.0"}
         )
-        with urllib.request.urlopen(req, timeout=6) as resp:
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
             sdata = json.loads(resp.read().decode("utf-8", errors="ignore"))
             results = ((sdata.get("query") or {}).get("search")) or []
             if results:
@@ -293,7 +447,7 @@ def _fallback_ai_answer(prompt: str) -> str | None:
                 sreq = urllib.request.Request(
                     sum_url, headers={"User-Agent": "JarvisVoiceAssistant/1.0"}
                 )
-                with urllib.request.urlopen(sreq, timeout=6) as sresp:
+                with urllib.request.urlopen(sreq, timeout=3.5) as sresp:
                     sum_data = json.loads(sresp.read().decode("utf-8", errors="ignore"))
                     extract = str(sum_data.get("extract") or "").strip()
                     if extract:
@@ -302,64 +456,137 @@ def _fallback_ai_answer(prompt: str) -> str | None:
                         return f"{short_extract} Sir."
     except Exception:
         pass
+    return None
 
+
+def _fallback_ai_answer(prompt: str) -> str:
+    """Race fast backup providers in parallel so answers arrive in ~1-3 seconds."""
+    if is_cancelled():
+        return ""
+
+    weather_ans = _weather_fallback(prompt)
     if weather_ans:
         return weather_ans
+
+    tasks = [_pollinations_post]
+    if re.match(r"^(?:what|who|where|when|explain|define|tell me about)\b", prompt.strip(), re.IGNORECASE):
+        tasks.append(_wikipedia_summary)
+
+    pool = ThreadPoolExecutor(max_workers=len(tasks))
+    try:
+        futures = [pool.submit(fn, prompt) for fn in tasks]
+        for fut in as_completed(futures, timeout=6.0):
+            if is_cancelled():
+                return ""
+            try:
+                ans = fut.result()
+                if ans:
+                    return ans
+            except Exception:
+                continue
+    except Exception:
+        pass
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
     return "I am online and ready to assist you, Sir."
 
 
+def _ask_gemini(prompt: str) -> str | None:
+    global _active_chat, _gemini_key_rejected, _gemini_checked_key
+
+    if _active_chat is not None:
+        try:
+            resp = _active_chat.send_message(prompt)
+            reply = str(resp.text or "").strip()
+            if reply:
+                return reply
+        except Exception:
+            _active_chat = None
+
+    api_key = _get_api_key()
+    if api_key != _gemini_checked_key:
+        _gemini_checked_key = api_key
+        _gemini_key_rejected = False
+
+    if api_key and not _gemini_key_rejected:
+        config = _get_fast_config()
+        auth_failed_all = True
+        for cand_client in _build_clients(api_key):
+            if is_cancelled():
+                return ""
+            for model_name in CANDIDATE_MODELS:
+                if is_cancelled():
+                    return ""
+                try:
+                    chat_session = cand_client.chats.create(model=model_name, config=config)
+                    resp = chat_session.send_message(prompt)
+                    reply = str(resp.text or "").strip()
+                    if reply:
+                        _active_chat = chat_session
+                        return reply
+                except Exception as err:
+                    err_s = str(err)
+                    if any(code in err_s for code in ("401", "UNAUTHENTICATED", "403")):
+                        break
+                    auth_failed_all = False
+                    continue
+        if auth_failed_all:
+            _gemini_key_rejected = True
+    return None
+
+
 def generate_ai_reply(command: str) -> str:
-    global _active_chat, _gemini_key_rejected
     prompt = str(command).strip()
     if not prompt:
         return "Yes, Sir? How may I help you?"
+    if is_cancelled():
+        return ""
 
     with _ai_lock:
-        if _active_chat is not None:
-            try:
-                resp = _active_chat.send_message(prompt)
-                reply = str(resp.text or "").strip()
-                if reply:
-                    _conversation_history.append((prompt, reply))
-                    return reply
-            except Exception:
-                _active_chat = None
+        if is_cancelled():
+            return ""
 
-        api_key = _get_api_key()
-        if api_key and not _gemini_key_rejected:
-            config = types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION)
-            auth_failed_all = True
-            for cand_client in _build_clients(api_key):
-                failures = 0
-                for model_name in CANDIDATE_MODELS:
-                    try:
-                        chat_session = cand_client.chats.create(model=model_name, config=config)
-                        resp = chat_session.send_message(prompt)
-                        reply = str(resp.text or "").strip()
-                        if reply:
-                            _active_chat = chat_session
-                            _conversation_history.append((prompt, reply))
-                            return reply
-                    except Exception as err:
-                        if any(code in str(err) for code in ("401", "UNAUTHENTICATED", "403")):
-                            failures += 1
-                            if failures >= 1:
-                                break
-                        else:
-                            auth_failed_all = False
-                        continue
-            if auth_failed_all:
-                _gemini_key_rejected = True
+        # Weather queries use live weather lookup first (local Ollama doesn't have live weather)
+        weather_ans = _weather_fallback(prompt)
+        if weather_ans:
+            _conversation_history.append((prompt, weather_ans))
+            return weather_ans
 
+        # 1. If provider is "ollama" or "auto", try local Ollama first if running
+        if ai_provider in {"ollama", "auto"}:
+            ollama_ans = _ask_ollama(prompt)
+            if ollama_ans:
+                _conversation_history.append((prompt, ollama_ans))
+                return ollama_ans
+            if ai_provider == "ollama":
+                return (
+                    f"Ollama is not running or '{DEFAULT_OLLAMA_MODEL}' is not pulled yet, Sir. "
+                    f"Run 'ollama pull {DEFAULT_OLLAMA_MODEL}' and start Ollama."
+                )
+
+        # 2. Try Gemini cloud API
+        if ai_provider in {"gemini", "auto"} and not is_cancelled():
+            gemini_ans = _ask_gemini(prompt)
+            if gemini_ans:
+                _conversation_history.append((prompt, gemini_ans))
+                return gemini_ans
+
+        if is_cancelled():
+            return ""
+
+        # 3. Fast parallel web fallback
         backup = _fallback_ai_answer(prompt)
         if backup:
             _conversation_history.append((prompt, backup))
             return backup
-        return "I am here and ready to assist you, Sir."
+        return ""
 
 
 def aiprocess(command: str) -> str:
     reply = generate_ai_reply(command)
+    if is_cancelled() or not reply:
+        return ""
     print(reply)
     speak(reply)
     return reply
@@ -439,7 +666,6 @@ def _lookup_music_link(song_query: str) -> str | None:
 
 
 def _is_spotify_running() -> bool:
-    """Check if Spotify.exe is currently running on Windows."""
     if os.name != "nt":
         return False
     try:
@@ -454,7 +680,6 @@ def _is_spotify_running() -> bool:
 
 
 def _find_spotify_executable() -> str | None:
-    """Locate Spotify.exe or Spotify.lnk across standard, Store, and Start Menu paths on Windows."""
     if os.name != "nt":
         return None
     candidates = [
@@ -475,7 +700,6 @@ def _find_spotify_executable() -> str | None:
 
 
 def _focus_spotify_window() -> None:
-    """Bring the Spotify desktop window to the foreground on Windows."""
     if os.name != "nt":
         return
     try:
@@ -497,17 +721,11 @@ def _focus_spotify_window() -> None:
 
 
 def _launch_spotify_app(uri: str | None = None) -> bool:
-    """
-    Reliably launch and focus the pre-installed Spotify desktop app on Windows
-    using executable paths, Start Menu AppID, or Windows Search fallback.
-    """
     if os.name != "nt":
         webbrowser.open(uri or "spotify:")
         return True
 
     launched = False
-
-    # 1. Try direct executable or shortcut path first
     exe_path = _find_spotify_executable()
     if exe_path:
         try:
@@ -522,7 +740,6 @@ def _launch_spotify_app(uri: str | None = None) -> bool:
         except Exception:
             pass
 
-    # 2. Try launching via Windows Start Menu AppsFolder (works for Microsoft Store & Desktop installs)
     if not launched:
         try:
             ps_cmd = (
@@ -538,15 +755,17 @@ def _launch_spotify_app(uri: str | None = None) -> bool:
         except Exception:
             pass
 
-    time.sleep(1.2)
+    if _cancellable_sleep(1.0):
+        return False
 
-    # 3. If Spotify.exe still isn't running, open it via Windows Start Menu key + typing "spotify"
     if not _is_spotify_running() and pyautogui is not None:
         try:
             pyautogui.press("win")
-            time.sleep(0.7)
+            if _cancellable_sleep(0.6):
+                return False
             pyautogui.write("spotify", interval=0.05)
-            time.sleep(0.8)
+            if _cancellable_sleep(0.7):
+                return False
             pyautogui.press("enter")
             launched = True
         except Exception:
@@ -557,16 +776,12 @@ def _launch_spotify_app(uri: str | None = None) -> bool:
 
 
 def open_spotify_app() -> None:
-    """Open or focus the installed Spotify desktop application."""
     speak("Opening Spotify, Sir.")
-    _launch_spotify_app()
+    if not is_cancelled():
+        _launch_spotify_app()
 
 
 def play_on_spotify(song_query: str) -> None:
-    """
-    Open the pre-installed Spotify desktop app, search for the song via Spotify's
-    Ctrl+K Quick Search spotlight modal, and play the #1 top result directly via Shift+Enter.
-    """
     global music_playing, spotify_playing
     song = song_query.strip()
     if not song:
@@ -574,32 +789,30 @@ def play_on_spotify(song_query: str) -> None:
         return
 
     speak(f"Playing {song} on Spotify, Sir.")
+    if is_cancelled():
+        return
     was_running = _is_spotify_running()
-
-    # Launch or focus the Spotify desktop app
     _launch_spotify_app()
 
     if pyautogui is not None:
-        # Wait for the Spotify desktop window to be ready and focused
-        time.sleep(2.0 if was_running else 5.0)
+        if _cancellable_sleep(1.8 if was_running else 4.5):
+            return
         _focus_spotify_window()
-        time.sleep(0.4)
+        if _cancellable_sleep(0.35):
+            return
         try:
-            # Open Spotify Desktop's built-in Quick Search modal (Ctrl+K)
             pyautogui.hotkey("ctrl", "k")
-            time.sleep(0.6)
-            # Clear any existing text in Quick Search and type the song query
+            if _cancellable_sleep(0.5):
+                return
             pyautogui.hotkey("ctrl", "a")
             time.sleep(0.1)
             pyautogui.press("backspace")
             time.sleep(0.1)
-            pyautogui.write(song, interval=0.04)
-            # Wait for Spotify to populate and auto-highlight the #1 top matching song
-            time.sleep(1.8)
-            # Shift+Enter immediately plays the #1 highlighted top result
+            pyautogui.write(song, interval=0.03)
+            if _cancellable_sleep(1.6):
+                return
             pyautogui.hotkey("shift", "enter")
-            time.sleep(0.3)
-            # Close the Ctrl+K search modal if it remains open
+            time.sleep(0.25)
             pyautogui.press("esc")
         except Exception:
             pass
@@ -609,10 +822,6 @@ def play_on_spotify(song_query: str) -> None:
 
 
 def _extract_spotify_song(raw_command: str) -> str | None:
-    """
-    If the command asks to play a song in/on Spotify, return the extracted song name
-    (or '' if no song name was given). Return None if it is not a Spotify play command.
-    """
     patterns = [
         r"^(?:open\s+spotify\s+and\s+)?play\s+(.+?)\s+(?:in|on|from|using)\s+spotify$",
         r"^(?:open\s+spotify\s+and\s+)?play\s+(?:in|on|from|using)\s+spotify\s+(.+)$",
@@ -631,6 +840,7 @@ def _extract_spotify_song(raw_command: str) -> str | None:
 
 def processcommand(c: str) -> bool:
     global music_playing, spotify_playing
+    clear_cancel()
     if not c or not str(c).strip():
         return False
     raw = (
@@ -650,6 +860,18 @@ def processcommand(c: str) -> bool:
     if command in {"thank you", "thanks", "thank you jarvis", "thanks jarvis"}:
         speak("You are welcome, Sir.")
         return True
+    if command in {"use ollama", "switch to ollama", "ollama mode"}:
+        set_ai_provider("ollama")
+        speak(f"Switched to local Ollama using {DEFAULT_OLLAMA_MODEL}, Sir.")
+        return False
+    if command in {"use gemini", "switch to gemini", "gemini mode"}:
+        set_ai_provider("gemini")
+        speak("Switched to Gemini cloud mode, Sir.")
+        return False
+    if command in {"use auto", "auto ai", "auto mode"}:
+        set_ai_provider("auto")
+        speak("Switched to automatic AI routing, Sir.")
+        return False
     if any(
         p in command
         for p in (
@@ -681,7 +903,6 @@ def processcommand(c: str) -> bool:
         speak(current_datetime_response(command))
         return False
 
-    # Check for "play [song] in/on spotify" or "open spotify and play [song]" first
     spotify_song = _extract_spotify_song(raw)
     if spotify_song is not None:
         play_on_spotify(spotify_song)
@@ -711,6 +932,8 @@ def processcommand(c: str) -> bool:
         song = raw[4:].strip()
         if song:
             speak(f"Playing {song}, Sir.")
+            if is_cancelled():
+                return False
             link = _lookup_music_link(song)
             playonyt_fn = getattr(pywhatkit, "playonyt", None) if pywhatkit is not None else None
             if link:
