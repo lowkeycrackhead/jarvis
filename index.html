@@ -624,7 +624,7 @@ input[type="range"] {
     </div>
 
     <!-- Live PC Telemetry -->
-    <div class="card">
+    <div class="card" id="pcTelemetryCard">
       <div class="card-title"><span>Live PC Telemetry</span><button class="msg-act" id="refreshSys" type="button">Refresh</button></div>
       <div class="gauges">
         <div class="gauge">
@@ -646,7 +646,7 @@ input[type="range"] {
     </div>
 
     <!-- Touch PC Sliders & One-Tap Actions -->
-    <div class="card">
+    <div class="card" id="pcControlsCard">
       <div class="card-title"><span>PC Controls</span></div>
       <div class="slider-row">
         <span class="slider-lbl">Volume</span>
@@ -725,7 +725,7 @@ input[type="range"] {
   var currentAbort = null, timerInt = null, taskStart = 0, toastTimer = null;
   var cmdHistory = [], histIdx = -1;
   var activeTimers = [], savedNotes = [];
-  var serverOnline = false, drawerOpen = false, sysPollInt = null;
+  var serverOnline = false, isCloud = false, drawerOpen = false, sysPollInt = null;
 
   try { useServer = localStorage.getItem('jarvis-mic') === 'server'; } catch(_){}
   try {
@@ -1431,8 +1431,69 @@ input[type="range"] {
     try { localStorage.setItem('jarvis-history', JSON.stringify(cmdHistory)); } catch(_){}
   }
 
+
+  /* --- Browser-Native Screen Vision (works on Vercel without Pillow!) --- */
+  function isVisionPrompt(t){
+    return /(on my screen|look at my screen|read my screen|explain my screen|see my screen|analyze my screen)/i.test(t);
+  }
+  function browserScreenVision(question){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){
+      addMsg('error', 'Screen capture is not supported in this browser. Try Chrome or Edge on desktop.');
+      return Promise.resolve();
+    }
+    busy = true;
+    addMsg('you', question);
+    setState('thinking', 'Select a screen or window to share…');
+    startTimer('Capturing screen…');
+    updateStopControls();
+    return navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      .then(function(stream){
+        var video = document.createElement('video');
+        video.srcObject = stream;
+        video.muted = true;
+        return video.play().then(function(){
+          return new Promise(function(resolve){ setTimeout(resolve, 220); });
+        }).then(function(){
+          var w = video.videoWidth || 1280, h = video.videoHeight || 720;
+          var scale = Math.min(1, 1280 / Math.max(w, h));
+          var cv = document.createElement('canvas');
+          cv.width = Math.round(w * scale);
+          cv.height = Math.round(h * scale);
+          cv.getContext('2d').drawImage(video, 0, 0, cv.width, cv.height);
+          stream.getTracks().forEach(function(tr){ tr.stop(); });
+          var dataUrl = cv.toDataURL('image/jpeg', 0.82);
+          setState('thinking', 'Analyzing your screen…');
+          taskLabel.textContent = 'Analyzing screen…';
+          return fetch('/api/vision', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: dataUrl, question: question })
+          });
+        });
+      })
+      .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error || 'Vision error'); return d; }); })
+      .then(function(d){
+        stopTimer();
+        var ans = d.reply || 'Done, Sir.';
+        addMsg('jarvis', ans);
+        return say(ans);
+      })
+      .catch(function(err){
+        stopTimer();
+        if(err && err.name === 'NotAllowedError'){
+          addMsg('cancelled', 'Screen share cancelled, Sir.');
+        } else {
+          addMsg('error', 'Screen Vision error: ' + (err && err.message ? err.message : 'Unable to capture screen.'));
+        }
+      })
+      .then(function(){
+        busy = false; stopTimer(); idle(); resumeRec();
+      });
+  }
+
   function send(text){
     if(busy) return Promise.resolve();
+    if(isCloud && isVisionPrompt(text)) return browserScreenVision(text);
     busy = true; offline = false;
     saveHistory(text); sfxSend(); energyBoost = 1.1;
     addMsg('you', text);
@@ -1466,7 +1527,7 @@ input[type="range"] {
               if(!line.startsWith('data:')) continue;
               try {
                 var evt = JSON.parse(line.slice(5).trim());
-                if(evt.open_url){ try { window.open(evt.open_url, '_blank', 'noopener'); } catch(_){} }
+                if(evt.open_url){ try { if(evt.open_url.startsWith('spotify:')){ window.location.href = evt.open_url; } else { window.open(evt.open_url, '_blank', 'noopener'); } } catch(_){} }
                 if(evt.token){
                   if(!firstTok){ firstTok = true; latTxt.textContent = Math.round(performance.now() - reqT0) + 'ms'; }
                   acc += evt.token;
@@ -1523,7 +1584,7 @@ input[type="range"] {
       setConn(r.ok);
       if(d && d.provider) updateAiBtn(d.provider, d.ollama_model, d.ollama_ready);
       if(d && d.persona) updatePersonaUI(d.persona);
-      if(d && d.cloud){ var bs = document.querySelector('.brand-sub'); if(bs) bs.textContent = d.supabase_ready ? 'CLOUD · SUPABASE' : 'CLOUD HUD'; }
+      if(d && d.cloud){ isCloud = true; var bs = document.querySelector('.brand-sub'); if(bs) bs.textContent = d.supabase_ready ? 'CLOUD · SUPABASE' : 'CLOUD HUD'; var tc = $('pcTelemetryCard'); if(tc) tc.style.display = 'none'; var cc = $('pcControlsCard'); if(cc) cc.style.display = 'none'; }
     }); }).catch(function(){ setConn(false); });
   }
   var aiModes = ['auto', 'ollama', 'gemini'], aiModeIdx = 0;

@@ -8,6 +8,7 @@ Run:
     python server.py
 Your browser opens at http://127.0.0.1:5000
 """
+import base64
 import json
 import os
 import re
@@ -159,7 +160,7 @@ def _cloud_web_url(text: str) -> tuple[str | None, str | None]:
     """For Vercel cloud mode, return (reply, url_to_open) for web-open commands."""
     low = text.lower().strip()
     sites = {
-        "open spotify": ("Opening Spotify Web, Sir.", "https://open.spotify.com"),
+        "open spotify": ("Launching Spotify app, Sir.", "spotify:"),
         "open youtube": ("Opening YouTube, Sir.", "https://youtube.com"),
         "open google": ("Opening Google, Sir.", "https://google.com"),
         "open github": ("Opening GitHub, Sir.", "https://github.com"),
@@ -176,9 +177,54 @@ def _cloud_web_url(text: str) -> tuple[str | None, str | None]:
         song = text[5:].strip()
         if "spotify" in low:
             q = re.sub(r"\s+(?:in|on)\s+spotify$", "", song, flags=re.IGNORECASE).strip()
-            return (f"Opening {q} on Spotify Web, Sir.", f"https://open.spotify.com/search/{urllib.parse.quote(q)}")
+            return (f"Searching {q} in Spotify app, Sir.", f"spotify:search:{urllib.parse.quote(q)}")
         return (f"Opening {song} on YouTube, Sir.", f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(song)}")
     return None, None
+
+
+
+@app.post("/api/vision")
+def vision_endpoint():
+    """Analyze a browser-captured screen snapshot (base64 JPEG) via Gemini Vision or local Ollama."""
+    data = request.get_json(silent=True) or {}
+    img_data = str(data.get("image") or "")
+    question = str(data.get("question") or "Briefly describe what is on my screen and help if there is an error or question.").strip()
+    if "," in img_data:
+        img_data = img_data.split(",", 1)[1]
+    if not img_data:
+        return jsonify(error="No screen image received."), 400
+    try:
+        jpeg_bytes = base64.b64decode(img_data)
+    except Exception:
+        return jsonify(error="Invalid image data."), 400
+
+    api_key = main._get_api_key()
+    reply = ""
+    if api_key and getattr(main, "genai", None) is not None and getattr(main, "types", None) is not None:
+        for model_name in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"):
+            try:
+                client = main.genai.Client(api_key=api_key)
+                part = main.types.Part.from_bytes(data=jpeg_bytes, mime_type="image/jpeg")
+                resp = client.models.generate_content(
+                    model=model_name,
+                    contents=[part, f"{extras.get_system_instruction()}\n\nUser asks about their screen: {question}"],
+                )
+                txt = (getattr(resp, "text", None) or "").strip()
+                if txt:
+                    reply = txt
+                    break
+            except Exception as err:
+                print(f"Cloud vision warning ({model_name}): {err}")
+
+    if not reply:
+        reply = (
+            "I captured your screen, Sir, but Gemini Vision couldn't respond. "
+            "Check that GEMINI_API_KEY is set in your Vercel Environment Variables."
+        )
+
+    extras.save_message("user", f"[Screen Vision] {question}", extras.get_persona())
+    extras.save_message("assistant", reply, extras.get_persona())
+    return jsonify(reply=reply)
 
 
 @app.post("/api/stream")
