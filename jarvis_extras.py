@@ -96,7 +96,62 @@ def get_system_instruction() -> str:
     return PERSONAS.get(_current_persona, PERSONAS["butler"])["prompt"]
 
 
-# --- Persistent Notes & Timers (jarvis_data.json) ---
+
+# --- Supabase REST Persistence (auto-enabled when SUPABASE_URL & SUPABASE_KEY are set) ---
+def _sb_creds() -> tuple[str, str]:
+    url = (os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").strip().rstrip("/")
+    key = (
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or os.getenv("SUPABASE_KEY")
+        or os.getenv("SUPABASE_ANON_KEY")
+        or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+        or ""
+    ).strip()
+    return url, key
+
+
+def is_supabase_connected() -> bool:
+    url, key = _sb_creds()
+    return bool(url and key and "your-project" not in url and "your_supabase" not in key)
+
+
+def _sb_request(method: str, path: str, payload: Any = None) -> Any:
+    url, key = _sb_creds()
+    if not (url and key):
+        return None
+    full_url = f"{url}/rest/v1/{path.lstrip('/')}"
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    req = urllib.request.Request(full_url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            raw = resp.read().decode("utf-8", errors="ignore").strip()
+            return json.loads(raw) if raw else []
+    except Exception as err:
+        print(f"Supabase REST warning ({method} {path}): {err}")
+        return None
+
+
+def save_message(role: str, content: str, persona: str = "butler") -> None:
+    if not is_supabase_connected() or not content:
+        return
+    _sb_request("POST", "jarvis_messages", {"role": role, "content": content[:4000], "persona": persona})
+
+
+def list_messages(limit: int = 20) -> list[dict[str, Any]]:
+    if not is_supabase_connected():
+        return []
+    rows = _sb_request("GET", f"jarvis_messages?select=role,content,persona,created_at&order=id.desc&limit={int(limit)}")
+    if isinstance(rows, list):
+        return list(reversed(rows))
+    return []
+
+# --- Persistent Notes & Timers (jarvis_data.json + Supabase) ---
 def _load_data() -> dict[str, Any]:
     default_data: dict[str, Any] = {"notes": [], "timers": []}
     if not os.path.isfile(DATA_FILE):
@@ -123,6 +178,10 @@ def _save_data(data: dict[str, Any]) -> None:
 
 
 def list_notes() -> list[dict[str, Any]]:
+    if is_supabase_connected():
+        rows = _sb_request("GET", "jarvis_notes?select=id,text,created_at&order=created_at.desc&limit=50")
+        if isinstance(rows, list):
+            return rows
     with _data_lock:
         return list(_load_data()["notes"])
 
@@ -134,6 +193,9 @@ def add_note(text: str) -> dict[str, Any]:
         "text": clean,
         "created_at": time.strftime("%I:%M %p · %b %d"),
     }
+    if is_supabase_connected():
+        _sb_request("POST", "jarvis_notes", {"id": note["id"], "text": clean})
+        return note
     with _data_lock:
         data = _load_data()
         data["notes"].insert(0, note)
@@ -143,6 +205,9 @@ def add_note(text: str) -> dict[str, Any]:
 
 
 def delete_note(note_id: str) -> bool:
+    if is_supabase_connected():
+        _sb_request("DELETE", f"jarvis_notes?id=eq.{urllib.request.quote(str(note_id))}")
+        return True
     with _data_lock:
         data = _load_data()
         before = len(data["notes"])
@@ -153,6 +218,10 @@ def delete_note(note_id: str) -> bool:
 
 def list_timers() -> list[dict[str, Any]]:
     now = time.time()
+    if is_supabase_connected():
+        rows = _sb_request("GET", f"jarvis_timers?select=id,label,duration,started_at,ends_at&ends_at=gt.{now - 5}&order=ends_at.asc")
+        if isinstance(rows, list):
+            return rows
     with _data_lock:
         data = _load_data()
         active = [t for t in data["timers"] if float(t.get("ends_at", 0)) > now - 5]
@@ -172,6 +241,9 @@ def add_timer(label: str, seconds: int) -> dict[str, Any]:
         "started_at": now,
         "ends_at": now + secs,
     }
+    if is_supabase_connected():
+        _sb_request("POST", "jarvis_timers", timer)
+        return timer
     with _data_lock:
         data = _load_data()
         data["timers"].append(timer)
@@ -180,6 +252,9 @@ def add_timer(label: str, seconds: int) -> dict[str, Any]:
 
 
 def cancel_timer(timer_id: str) -> bool:
+    if is_supabase_connected():
+        _sb_request("DELETE", f"jarvis_timers?id=eq.{urllib.request.quote(str(timer_id))}")
+        return True
     with _data_lock:
         data = _load_data()
         before = len(data["timers"])

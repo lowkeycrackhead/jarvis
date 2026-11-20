@@ -1,4 +1,4 @@
-# pyright: reportMissingImports=false, reportMissingModuleSource=false, reportOptionalMemberAccess=false, reportAttributeAccessIssue=false, reportGeneralTypeIssues=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportMissingImports=false, reportMissingModuleSource=false, reportOptionalMemberAccess=false, reportOptionalCall=false, reportAttributeAccessIssue=false, reportGeneralTypeIssues=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import glob
 import importlib
@@ -16,22 +16,35 @@ import webbrowser
 from datetime import datetime
 from typing import Any
 
-try:
-    import pyaudio  # noqa: F401
-except ModuleNotFoundError:
+IS_CLOUD = bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
+
+if not IS_CLOUD:
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "PyAudio"])
         import pyaudio  # noqa: F401
-    except Exception:
-        pyaudio = None  # type: ignore[assignment]
+    except ModuleNotFoundError:
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "PyAudio"])
+            import pyaudio  # noqa: F401
+        except Exception:
+            pyaudio = None  # type: ignore[assignment]
+else:
+    pyaudio = None  # type: ignore[assignment]
 
 import jarvis_extras as extras
 
-import speech_recognition as sr
+try:
+    import speech_recognition as sr
+except Exception:
+    sr = None  # type: ignore[assignment]
+
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from gtts import gTTS
+
+try:
+    from gtts import gTTS
+except Exception:
+    gTTS = None  # type: ignore[assignment]
 
 try:
     from pygame import mixer
@@ -121,7 +134,7 @@ CANDIDATE_MODELS: list[str] = list(
 DEFAULT_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b").strip() or "llama3.2:3b"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 # AI_PROVIDER: "auto" (Ollama local if running -> Gemini -> backup), "ollama", or "gemini"
-ai_provider: str = os.getenv("AI_PROVIDER", "auto").strip().lower() or "auto"
+ai_provider: str = os.getenv("AI_PROVIDER", "gemini" if IS_CLOUD else "auto").strip().lower() or ("gemini" if IS_CLOUD else "auto")
 if ai_provider not in {"auto", "ollama", "gemini"}:
     ai_provider = "auto"
 
@@ -132,7 +145,7 @@ WAKE_WORD_PATTERN = re.compile(
 
 music_playing: bool = False
 spotify_playing: bool = False
-recognizer = sr.Recognizer()
+recognizer = sr.Recognizer() if sr is not None else None
 _mixer_initialized: bool = False
 _ai_lock = threading.Lock()
 _active_chat: Any = None
@@ -456,7 +469,7 @@ def speak(text: str) -> None:
     clean = re.sub(r"\s+", " ", clean).strip()
     if not clean:
         return
-    if not _ensure_mixer() or mixer is None:
+    if not _ensure_mixer() or mixer is None or gTTS is None:
         print(f"Jarvis: {clean}")
         return
     temp_path: str | None = None
