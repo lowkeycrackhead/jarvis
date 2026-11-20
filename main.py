@@ -827,25 +827,49 @@ def _find_spotify_executable() -> str | None:
     return None
 
 
-def _focus_spotify_window() -> None:
+def _focus_spotify_window(retries: int = 6) -> bool:
+    """Force the Spotify desktop window in front of the browser on Windows (works even when a song title is shown)."""
     if os.name != "nt":
-        return
-    try:
-        subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-WindowStyle",
-                "Hidden",
-                "-Command",
-                "(New-Object -ComObject WScript.Shell).AppActivate('Spotify') | Out-Null",
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=3,
-        )
-    except Exception:
-        pass
+        return False
+    ps_script = (
+        "Add-Type @'\n"
+        "using System;\n"
+        "using System.Runtime.InteropServices;\n"
+        "public class WinFocus {\n"
+        "  [DllImport(\"user32.dll\")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);\n"
+        "  [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr hWnd);\n"
+        "  [DllImport(\"user32.dll\")] public static extern bool BringWindowToTop(IntPtr hWnd);\n"
+        "  [DllImport(\"user32.dll\")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);\n"
+        "  public static void ForceFront(IntPtr h) {\n"
+        "    ShowWindowAsync(h, 9);\n"
+        "    keybd_event(0x12, 0, 0, UIntPtr.Zero);\n"
+        "    keybd_event(0x12, 0, 2, UIntPtr.Zero);\n"
+        "    BringWindowToTop(h);\n"
+        "    SetForegroundWindow(h);\n"
+        "  }\n"
+        "}\n"
+        "'@; "
+        "$p = Get-Process -Name Spotify -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1; "
+        "if ($p) { [WinFocus]::ForceFront($p.MainWindowHandle); Write-Output 'OK' }"
+    )
+    for _ in range(max(1, retries)):
+        if is_cancelled():
+            return False
+        try:
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                timeout=3.5,
+                check=False,
+            )
+            if "OK" in (res.stdout or ""):
+                return True
+        except Exception:
+            pass
+        if _cancellable_sleep(0.4):
+            return False
+    return False
 
 
 def _launch_spotify_app(uri: str | None = None) -> bool:
