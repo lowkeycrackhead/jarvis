@@ -10,14 +10,13 @@
 <style>
 :root {
   --bg: #04070e;
-  --bg-elev: rgba(12, 18, 32, 0.72);
-  --surface: rgba(15, 23, 42, 0.74);
-  --surface-hi: rgba(28, 41, 66, 0.9);
+  --bg-elev: rgba(12, 18, 32, 0.74);
+  --surface: rgba(15, 23, 42, 0.76);
+  --surface-hi: rgba(28, 41, 66, 0.92);
   --border: rgba(148, 163, 184, 0.16);
   --border-hi: rgba(56, 189, 248, 0.52);
   --cyan: #38bdf8;
   --cyan-soft: rgba(56, 189, 248, 0.18);
-  --cyan-glow: rgba(56, 189, 248, 0.42);
   --indigo: #818cf8;
   --emerald: #34d399;
   --amber: #fbbf24;
@@ -32,14 +31,8 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}
-html {
-  color-scheme: dark;
-  touch-action: manipulation;
-}
+*, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { color-scheme: dark; touch-action: manipulation; }
 body {
   margin: 0;
   height: 100dvh;
@@ -60,7 +53,6 @@ body {
   background-size: 100% 100%, 100% 100%, 38px 38px, 38px 38px;
 }
 
-/* Live Interactive Particle Field */
 #bgCanvas {
   position: fixed;
   inset: 0;
@@ -70,7 +62,6 @@ body {
   z-index: 0;
 }
 
-/* Touch Ripple Layer */
 .touch-ripple {
   position: fixed;
   border-radius: 50%;
@@ -85,10 +76,7 @@ body {
   animation: rippleOut 0.52s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.top, .stage, .task-banner, .log, .quick-strip, .dock, .toast-wrap {
-  position: relative;
-  z-index: 2;
-}
+.top, .stage, .task-banner, .log, .quick-strip, .dock, .toast-wrap { position: relative; z-index: 2; }
 
 button, input { font: inherit; color: inherit; }
 button {
@@ -98,9 +86,7 @@ button {
   overflow: hidden;
   transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s ease, background 0.18s ease, box-shadow 0.2s ease, color 0.18s ease;
 }
-button:active:not(:disabled) {
-  transform: scale(0.94);
-}
+button:active:not(:disabled) { transform: scale(0.94); }
 :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
 /* Top Navigation Bar */
@@ -109,23 +95,16 @@ button:active:not(:disabled) {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: calc(12px + env(safe-area-inset-top, 0px)) 20px 12px;
-  background: rgba(4, 7, 14, 0.72);
+  padding: calc(11px + env(safe-area-inset-top, 0px)) 18px 11px;
+  background: rgba(4, 7, 14, 0.76);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
-  z-index: 10;
+  z-index: 15;
 }
-.brand-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
+.brand-wrap { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .brand-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+  width: 10px; height: 10px; border-radius: 50%;
   background: var(--cyan);
   box-shadow: 0 0 12px var(--cyan), 0 0 24px rgba(56, 189, 248, 0.45);
   animation: pulse 2.2s ease-in-out infinite;
@@ -153,7 +132,7 @@ button:active:not(:disabled) {
 .telemetry {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   font-family: var(--font-mono);
   font-size: 11.5px;
   color: var(--muted);
@@ -165,609 +144,369 @@ button:active:not(:disabled) {
 }
 .telemetry .lat { color: var(--emerald); }
 
-.tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 7px;
-}
+.tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 .pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  font-size: 12.5px;
-  color: var(--muted);
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 34px; padding: 4px 10px; border-radius: 999px;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  font-size: 12px; color: var(--muted);
 }
-#conn i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--dim);
-  transition: background 0.2s, box-shadow 0.2s;
-}
+#conn i { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); transition: background 0.2s, box-shadow 0.2s; }
 #conn.online i { background: var(--emerald); box-shadow: 0 0 10px var(--emerald); }
 #conn.online { color: var(--text); border-color: rgba(52, 211, 153, 0.34); }
 
 .ghost {
-  min-height: 36px;
+  min-height: 34px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
-  border-radius: 11px;
-  padding: 6px 12px;
-  font-size: 12.5px;
+  border-radius: 10px;
+  padding: 5px 10px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--muted);
-}
-.ghost:hover {
-  color: var(--text);
-  border-color: var(--border-hi);
-  background: var(--surface-hi);
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.14);
-}
-.ghost.active-pill {
-  color: var(--cyan);
-  border-color: rgba(56, 189, 248, 0.45);
-  background: rgba(56, 189, 248, 0.12);
-}
-
-.stop-top {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 6px 13px;
-  border-radius: 11px;
-  border: 1px solid var(--danger-border);
-  background: var(--danger-bg);
-  color: #fda4af;
-  font-size: 12.5px;
-  font-weight: 600;
+  gap: 5px;
 }
-.stop-top:hover:not(:disabled) {
-  background: var(--danger);
-  color: #fff;
-  box-shadow: 0 0 22px rgba(244, 63, 94, 0.5);
+.ghost:hover { color: var(--text); border-color: var(--border-hi); background: var(--surface-hi); }
+.ghost.active-pill { color: var(--cyan); border-color: rgba(56, 189, 248, 0.48); background: rgba(56, 189, 248, 0.14); }
+.badge-count {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--cyan);
+  color: #04070e;
+  font-weight: 700;
+  display: none;
 }
-.stop-top:disabled {
-  opacity: 0.35;
-  cursor: default;
-  border-color: var(--border);
-  background: transparent;
-  color: var(--dim);
+.badge-count.show { display: inline-block; }
+
+.stop-top {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 34px; padding: 5px 11px; border-radius: 10px;
+  border: 1px solid var(--danger-border); background: var(--danger-bg);
+  color: #fda4af; font-size: 12px; font-weight: 600;
 }
-.stop-top svg { width: 13px; height: 13px; fill: currentColor; }
+.stop-top:hover:not(:disabled) { background: var(--danger); color: #fff; box-shadow: 0 0 22px rgba(244, 63, 94, 0.5); }
+.stop-top:disabled { opacity: 0.35; cursor: default; border-color: var(--border); background: transparent; color: var(--dim); }
+.stop-top svg { width: 12px; height: 12px; fill: currentColor; }
 
 /* Interactive 3D Arc-Reactor Stage */
 .stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 18px 20px 6px;
-  perspective: 700px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 16px 20px 4px; perspective: 700px;
   transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .reactor-wrap {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 172px;
-  height: 172px;
-  transform-style: preserve-3d;
+  position: relative; display: grid; place-items: center;
+  width: 168px; height: 168px; transform-style: preserve-3d;
   transition: width 0.35s ease, height 0.35s ease, transform 0.18s ease-out;
   touch-action: none;
 }
 #waveCanvas {
-  position: absolute;
-  inset: -14px;
-  width: calc(100% + 28px);
-  height: calc(100% + 28px);
+  position: absolute; inset: -14px;
+  width: calc(100% + 28px); height: calc(100% + 28px);
   pointer-events: none;
 }
-.ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 1px solid rgba(56, 189, 248, 0.24);
-  pointer-events: none;
-  transition: border-color 0.25s ease, transform 0.25s ease;
-}
-.ring.r1 {
-  inset: 6px;
-  border-width: 1.5px;
-  border-top-color: var(--cyan);
-  border-right-color: transparent;
-  animation: spin 10s linear infinite;
-}
-.ring.r2 {
-  inset: 17px;
-  border-style: dashed;
-  border-color: rgba(129, 140, 248, 0.38);
-  animation: spinRev 16s linear infinite;
-}
-.hold-ring {
-  position: absolute;
-  inset: 2px;
-  width: calc(100% - 4px);
-  height: calc(100% - 4px);
-  transform: rotate(-90deg);
-  pointer-events: none;
-}
+.ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(56, 189, 248, 0.24); pointer-events: none; }
+.ring.r1 { inset: 6px; border-width: 1.5px; border-top-color: var(--cyan); border-right-color: transparent; animation: spin 10s linear infinite; }
+.ring.r2 { inset: 17px; border-style: dashed; border-color: rgba(129, 140, 248, 0.38); animation: spinRev 16s linear infinite; }
+.hold-ring { position: absolute; inset: 2px; width: calc(100% - 4px); height: calc(100% - 4px); transform: rotate(-90deg); pointer-events: none; }
 .hold-ring circle {
-  fill: none;
-  stroke: var(--cyan);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-dasharray: 440;
-  stroke-dashoffset: 440;
-  filter: drop-shadow(0 0 8px var(--cyan));
-  transition: stroke-dashoffset 0.06s linear;
+  fill: none; stroke: var(--cyan); stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 440; stroke-dashoffset: 440;
+  filter: drop-shadow(0 0 8px var(--cyan)); transition: stroke-dashoffset 0.06s linear;
 }
 .orb {
-  position: relative;
-  width: 112px;
-  height: 112px;
-  border-radius: 50%;
+  position: relative; width: 108px; height: 108px; border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.32);
   background:
     radial-gradient(circle at var(--gx, 32%) var(--gy, 28%), rgba(224, 242, 254, 0.94), rgba(56, 189, 248, 0.44) 38%, rgba(15, 23, 42, 0.92) 78%),
     radial-gradient(circle at 72% 76%, rgba(99, 102, 241, 0.62), transparent 62%);
-  box-shadow:
-    inset 0 2px 14px rgba(255, 255, 255, 0.52),
-    0 0 42px rgba(56, 189, 248, 0.42),
-    0 16px 42px rgba(0, 0, 0, 0.58);
-  display: grid;
-  place-items: center;
-  touch-action: none;
+  box-shadow: inset 0 2px 14px rgba(255, 255, 255, 0.52), 0 0 42px rgba(56, 189, 248, 0.42), 0 16px 42px rgba(0, 0, 0, 0.58);
+  display: grid; place-items: center; touch-action: none;
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, width 0.35s ease, height 0.35s ease;
 }
-.orb:hover {
-  transform: scale(1.06);
-  box-shadow: inset 0 2px 16px rgba(255, 255, 255, 0.62), 0 0 60px rgba(56, 189, 248, 0.62);
-}
-.orb.pressing {
-  transform: scale(0.92);
-  box-shadow: inset 0 2px 20px rgba(255, 255, 255, 0.72), 0 0 70px rgba(56, 189, 248, 0.8);
-}
-.orb-bars { display: flex; align-items: center; gap: 4.5px; height: 32px; pointer-events: none; }
+.orb:hover { transform: scale(1.06); box-shadow: inset 0 2px 16px rgba(255, 255, 255, 0.62), 0 0 60px rgba(56, 189, 248, 0.62); }
+.orb.pressing { transform: scale(0.92); box-shadow: inset 0 2px 20px rgba(255, 255, 255, 0.72), 0 0 70px rgba(56, 189, 248, 0.8); }
+.orb-bars { display: flex; align-items: center; gap: 4.5px; height: 34px; pointer-events: none; }
 .orb-bars i {
-  display: block;
-  width: 3.8px;
-  height: 8px;
-  border-radius: 99px;
-  background: #fff;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
-  transition: height 0.14s ease;
+  display: block; width: 3.8px; height: 8px; border-radius: 99px;
+  background: #fff; box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  transition: height 0.08s ease;
 }
-.orb-bars i:nth-child(2) { animation-delay: -0.15s; }
-.orb-bars i:nth-child(3) { animation-delay: -0.3s; }
-.orb-bars i:nth-child(4) { animation-delay: -0.45s; }
-.orb-bars i:nth-child(5) { animation-delay: -0.6s; }
-
-/* Orb States */
-.orb[data-state="listening"] .orb-bars i { height: 12px; }
-.orb[data-state="awake"] {
-  box-shadow: inset 0 2px 16px rgba(255, 255, 255, 0.7), 0 0 68px rgba(56, 189, 248, 0.78);
-}
-.orb[data-state="awake"] .orb-bars i,
-.orb[data-state="speaking"] .orb-bars i { animation: wave 0.72s ease-in-out infinite; }
+.orb[data-state="awake"] { box-shadow: inset 0 2px 16px rgba(255, 255, 255, 0.7), 0 0 68px rgba(52, 211, 153, 0.75); }
 .orb[data-state="thinking"] {
-  background:
-    radial-gradient(circle at var(--gx, 35%) var(--gy, 30%), rgba(221, 214, 254, 0.94), rgba(99, 102, 241, 0.56) 42%, rgba(15, 23, 42, 0.92) 80%);
+  background: radial-gradient(circle at var(--gx, 35%) var(--gy, 30%), rgba(221, 214, 254, 0.94), rgba(99, 102, 241, 0.56) 42%, rgba(15, 23, 42, 0.92) 80%);
   box-shadow: 0 0 58px rgba(99, 102, 241, 0.72);
 }
 .orb[data-state="thinking"] ~ .r1 { animation-duration: 1.8s; border-top-color: #a5b4fc; }
-.orb[data-state="thinking"] .orb-bars i { animation: wave 0.48s ease-in-out infinite; }
 
-/* Compact header stage once messages exist */
-.has-msgs .stage {
-  flex-direction: row;
-  justify-content: center;
-  gap: 14px;
-  padding: 8px 20px 4px;
-}
-.has-msgs .reactor-wrap { width: 64px; height: 64px; }
+.has-msgs .stage { flex-direction: row; justify-content: center; gap: 14px; padding: 7px 20px 4px; }
+.has-msgs .reactor-wrap { width: 62px; height: 62px; }
 .has-msgs .ring.r1 { inset: 2px; }
 .has-msgs .ring.r2 { inset: 7px; }
-.has-msgs .orb { width: 46px; height: 46px; }
+.has-msgs .orb { width: 44px; height: 44px; }
 .has-msgs .orb-bars { height: 16px; gap: 2.5px; }
-.has-msgs .orb-bars i { width: 2.5px; height: 4px; }
-.has-msgs .orb[data-state="awake"] .orb-bars i,
-.has-msgs .orb[data-state="speaking"] .orb-bars i,
-.has-msgs .orb[data-state="thinking"] .orb-bars i { animation-name: waveSmall; }
+.has-msgs .orb-bars i { width: 2.4px; }
 .has-msgs .gesture-hint { display: none; }
 
 .txt { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
 .has-msgs .txt { align-items: flex-start; }
-#status {
-  margin: 0;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--text);
-}
-.gesture-hint {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--dim);
-}
+#status { margin: 0; font-size: 13.5px; font-weight: 500; color: var(--text); }
+.gesture-hint { margin: 0; font-family: var(--font-mono); font-size: 11px; color: var(--dim); }
 .heard {
-  margin: 0;
-  max-width: min(56ch, 88vw);
-  min-height: 1.25em;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--cyan);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin: 0; max-width: min(56ch, 88vw); min-height: 1.2em;
+  font-family: var(--font-mono); font-size: 12px; color: var(--cyan);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-/* Active Task Banner (Swipe Left to Cancel on Touch!) */
+/* Active Task Banner */
 .task-banner {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: min(760px, calc(100% - 28px));
-  margin: 4px auto 0;
-  padding: 10px 14px;
-  border-radius: 13px;
-  background: rgba(244, 63, 94, 0.1);
-  border: 1px solid rgba(244, 63, 94, 0.38);
-  backdrop-filter: blur(14px);
-  touch-action: pan-y;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  display: none; align-items: center; justify-content: space-between; gap: 12px;
+  width: min(760px, calc(100% - 28px)); margin: 4px auto 0; padding: 9px 14px;
+  border-radius: 13px; background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.38); backdrop-filter: blur(14px);
+  touch-action: pan-y; transition: transform 0.15s ease, opacity 0.15s ease;
 }
 .task-banner.show { display: flex; }
-.task-info {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  font-size: 13px;
-  color: var(--text);
-}
-.pulse-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--cyan);
-  box-shadow: 0 0 10px var(--cyan);
-  animation: pulse 1.1s ease-in-out infinite;
-}
+.task-info { display: flex; align-items: center; gap: 9px; min-width: 0; font-size: 13px; }
+.pulse-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); animation: pulse 1.1s ease-in-out infinite; }
 .task-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-timer { font-family: var(--font-mono); font-size: 12px; color: var(--muted); flex: none; }
 .abort-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 5px 13px;
-  border-radius: 9px;
-  border: 1px solid var(--danger-border);
-  background: var(--danger);
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 600;
+  flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 34px;
+  padding: 5px 13px; border-radius: 9px; border: 1px solid var(--danger-border);
+  background: var(--danger); color: #fff; font-size: 12.5px; font-weight: 600;
 }
-.abort-btn:hover { filter: brightness(1.12); box-shadow: 0 0 16px rgba(244, 63, 94, 0.45); }
 
 /* Conversation Log */
 .log {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  width: 100%;
-  max-width: 790px;
-  margin: 0 auto;
-  padding: 10px 20px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  user-select: text;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.24) transparent;
+  flex: 1; min-height: 0; overflow-y: auto; width: 100%; max-width: 790px;
+  margin: 0 auto; padding: 8px 20px 12px;
+  display: flex; flex-direction: column; gap: 13px;
+  user-select: text; -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.24) transparent;
 }
 .empty { margin: auto; width: 100%; text-align: center; padding: 4px 0; }
 .empty h2 {
-  margin: 0 0 6px;
-  font-family: var(--font-display);
-  font-size: 29px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  background: linear-gradient(135deg, #ffffff 28%, #7dd3fc 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  margin: 0 0 6px; font-family: var(--font-display); font-size: 28px; font-weight: 700;
+  letter-spacing: -0.03em; background: linear-gradient(135deg, #ffffff 28%, #7dd3fc 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
-.empty p { margin: 0 0 20px; color: var(--muted); font-size: 13.5px; max-width: 54ch; margin-inline: auto; }
-
-.sug {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 11px;
-  max-width: 600px;
-  margin: 0 auto;
-  text-align: left;
-}
-.sug button {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 15px;
-  padding: 14px 16px;
-  min-height: 68px;
-  backdrop-filter: blur(14px);
-}
-.sug button:hover {
-  transform: translateY(-2px);
-  border-color: var(--border-hi);
-  background: var(--surface-hi);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), 0 0 20px rgba(56, 189, 248, 0.14);
-}
+.empty p { margin: 0 0 18px; color: var(--muted); font-size: 13.5px; max-width: 56ch; margin-inline: auto; }
+.sug { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: 600px; margin: 0 auto; text-align: left; }
+.sug button { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 13px 15px; min-height: 64px; backdrop-filter: blur(14px); }
+.sug button:hover { transform: translateY(-2px); border-color: var(--border-hi); background: var(--surface-hi); box-shadow: 0 10px 26px rgba(0,0,0,0.35), 0 0 18px rgba(56,189,248,0.14); }
 .sug b { display: block; font-weight: 600; font-size: 13.5px; color: var(--text); margin-bottom: 2px; }
 .sug span { font-size: 12.5px; color: var(--muted); }
 
-/* Messages with Interactive Action Chips */
-.msg {
-  max-width: 68ch;
-  overflow-wrap: anywhere;
-  animation: fadeUp 0.24s cubic-bezier(0.22, 1, 0.36, 1);
-  position: relative;
-}
+.msg { max-width: 68ch; overflow-wrap: anywhere; animation: fadeUp 0.22s cubic-bezier(0.22, 1, 0.36, 1); position: relative; }
 .msg.you {
   align-self: flex-end;
   background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.22));
   border: 1px solid rgba(56, 189, 248, 0.38);
-  border-radius: 17px 17px 4px 17px;
-  padding: 10px 15px;
-  color: #fff;
+  border-radius: 17px 17px 4px 17px; padding: 10px 15px; color: #fff;
 }
 .msg.jarvis {
-  align-self: flex-start;
-  display: flex;
-  gap: 11px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 17px 17px 17px 4px;
-  padding: 11px 15px;
-  backdrop-filter: blur(14px);
+  align-self: flex-start; display: flex; gap: 11px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 17px 17px 17px 4px; padding: 11px 15px; backdrop-filter: blur(14px);
 }
 .msg.jarvis::before {
-  content: "";
-  flex: none;
-  width: 20px;
-  height: 20px;
-  margin-top: 2px;
-  border-radius: 50%;
+  content: ""; flex: none; width: 20px; height: 20px; margin-top: 2px; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #bae6fd, #38bdf8 50%, #4f46e5);
   box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
 }
 .msg-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.msg-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 2px;
-}
+.stream-cursor { display: inline-block; width: 7px; height: 14px; background: var(--cyan); margin-left: 3px; vertical-align: -2px; animation: blink 0.7s steps(2) infinite; }
+.msg-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .msg-act {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 3px 9px;
-  min-height: 28px;
-  border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(15, 23, 42, 0.55);
-  color: var(--muted);
+  font-family: var(--font-mono); font-size: 11px; padding: 3px 9px; min-height: 28px;
+  border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.55); color: var(--muted);
 }
-.msg-act:hover {
-  color: var(--text);
-  border-color: var(--border-hi);
-  background: rgba(56, 189, 248, 0.14);
-}
+.msg-act:hover { color: var(--text); border-color: var(--border-hi); background: rgba(56, 189, 248, 0.14); }
 .msg.cancelled {
-  align-self: center;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: #fda4af;
-  border: 1px solid var(--danger-border);
-  background: var(--danger-bg);
-  border-radius: 999px;
-  padding: 4px 14px;
+  align-self: center; font-family: var(--font-mono); font-size: 12px; color: #fda4af;
+  border: 1px solid var(--danger-border); background: var(--danger-bg); border-radius: 999px; padding: 4px 14px;
 }
 .msg.error {
-  align-self: center;
-  color: #fda4af;
-  font-size: 13px;
-  text-align: center;
-  border: 1px solid var(--danger-border);
-  background: var(--danger-bg);
-  border-radius: 10px;
-  padding: 8px 14px;
+  align-self: center; color: #fda4af; font-size: 13px; text-align: center;
+  border: 1px solid var(--danger-border); background: var(--danger-bg); border-radius: 10px; padding: 8px 14px;
 }
 
-.typing span {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin: 8px 2px 0;
-  border-radius: 50%;
-  background: var(--cyan);
-  animation: dot 1.05s ease-in-out infinite;
-}
-.typing span:nth-child(2) { animation-delay: 0.15s; }
-.typing span:nth-child(3) { animation-delay: 0.3s; }
-
-/* Touch-Scrollable Live Quick-Action Strip */
+/* Quick-Action Touch Strip */
 .quick-strip {
-  width: 100%;
-  max-width: 790px;
-  margin: 0 auto;
-  padding: 4px 20px 2px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  width: 100%; max-width: 790px; margin: 0 auto; padding: 4px 18px 2px;
+  display: flex; align-items: center; gap: 7px; overflow-x: auto;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
 }
 .quick-strip::-webkit-scrollbar { display: none; }
 .qchip {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 6px 13px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.72);
-  backdrop-filter: blur(10px);
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 500;
-  white-space: nowrap;
+  flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px;
+  padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.74); backdrop-filter: blur(10px);
+  color: var(--muted); font-size: 12px; font-weight: 500; white-space: nowrap;
 }
-.qchip:hover {
-  color: var(--text);
-  border-color: var(--border-hi);
-  background: rgba(56, 189, 248, 0.14);
-  transform: translateY(-1px);
-}
-.qchip i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--cyan);
-  box-shadow: 0 0 8px var(--cyan);
-}
+.qchip:hover { color: var(--text); border-color: var(--border-hi); background: rgba(56, 189, 248, 0.14); transform: translateY(-1px); }
+.qchip i { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.qchip.accent i { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
 
 /* Bottom Composer Dock */
-.dock {
-  padding: 8px 18px calc(16px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(to top, var(--bg) 72%, transparent);
-}
+.dock { padding: 7px 18px calc(15px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(to top, var(--bg) 72%, transparent); }
 .bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 790px;
-  margin: 0 auto;
-  padding: 7px 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  backdrop-filter: blur(20px);
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.48);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  display: flex; align-items: center; gap: 8px; max-width: 790px; margin: 0 auto;
+  padding: 7px 8px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; backdrop-filter: blur(20px); box-shadow: 0 14px 38px rgba(0, 0, 0, 0.48);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
-.bar:focus-within {
-  border-color: var(--cyan);
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18), 0 16px 40px rgba(0, 0, 0, 0.55);
-}
-#text {
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: 0;
-  outline: 0;
-  padding: 9px 6px;
-  font-size: 15px;
-}
+.bar:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18), 0 16px 40px rgba(0, 0, 0, 0.55); }
+#text { flex: 1; min-width: 0; background: none; border: 0; outline: 0; padding: 9px 6px; font-size: 15px; }
 #text::placeholder { color: var(--dim); }
 
-.icon, .send, .stop-inline {
-  flex: none;
-  height: 44px;
-  border-radius: 14px;
-  border: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
+.icon, .send, .stop-inline { flex: none; height: 44px; border-radius: 14px; border: 0; display: inline-flex; align-items: center; justify-content: center; }
 .icon { width: 44px; background: rgba(148, 163, 184, 0.08); color: var(--muted); }
 .icon:hover { background: var(--surface-hi); color: var(--text); }
-.icon.on {
-  background: rgba(56, 189, 248, 0.24);
-  color: var(--cyan);
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.36);
-}
-.send {
-  width: 44px;
-  background: linear-gradient(135deg, #38bdf8, #6366f1);
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.28);
-}
+.icon.on { background: rgba(56, 189, 248, 0.24); color: var(--cyan); box-shadow: 0 0 18px rgba(56, 189, 248, 0.36); }
+.send { width: 44px; background: linear-gradient(135deg, #38bdf8, #6366f1); color: #fff; box-shadow: 0 4px 16px rgba(56, 189, 248, 0.28); }
 .send:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); }
 .send:disabled { opacity: 0.28; cursor: default; box-shadow: none; }
-
-.stop-inline {
-  display: none;
-  gap: 6px;
-  padding: 0 15px;
-  background: var(--danger);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  box-shadow: 0 0 18px rgba(244, 63, 94, 0.4);
-}
+.stop-inline { display: none; gap: 6px; padding: 0 15px; background: var(--danger); color: #fff; font-size: 13px; font-weight: 600; box-shadow: 0 0 18px rgba(244, 63, 94, 0.4); }
 .stop-inline.show { display: inline-flex; }
-.stop-inline:hover { filter: brightness(1.1); }
-
 .icon svg, .send svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .stop-inline svg { width: 13px; height: 13px; fill: currentColor; }
 
-/* Floating Interactive Toast */
-.toast-wrap {
-  position: fixed;
-  bottom: 92px;
-  left: 50%;
-  transform: translateX(-50%);
-  pointer-events: none;
-  z-index: 50;
+/* Slide-Over Interactive HUD Control Center Drawer */
+.drawer-backdrop {
+  position: fixed; inset: 0; background: rgba(2, 6, 15, 0.55); backdrop-filter: blur(4px);
+  opacity: 0; pointer-events: none; transition: opacity 0.25s ease; z-index: 30;
 }
+.drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+.hud-drawer {
+  position: fixed; top: 0; right: 0; height: 100dvh; width: min(390px, 94vw);
+  background: rgba(8, 13, 24, 0.94); backdrop-filter: blur(24px);
+  border-left: 1px solid var(--border-hi);
+  box-shadow: -18px 0 50px rgba(0, 0, 0, 0.65);
+  transform: translateX(104%); transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 35; display: flex; flex-direction: column; overflow: hidden;
+}
+.hud-drawer.open { transform: translateX(0); }
+.drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px; border-bottom: 1px solid var(--border);
+}
+.drawer-head h3 { margin: 0; font-family: var(--font-display); font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cyan); }
+.drawer-body {
+  flex: 1; overflow-y: auto; padding: 14px 16px 24px;
+  display: flex; flex-direction: column; gap: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+.card {
+  background: rgba(15, 23, 42, 0.72); border: 1px solid var(--border);
+  border-radius: 14px; padding: 13px 14px;
+}
+.card-title {
+  margin: 0 0 10px; font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+/* Live Gauges */
+.gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gauge {
+  background: rgba(4, 7, 14, 0.55); border: 1px solid var(--border);
+  border-radius: 11px; padding: 9px 8px; text-align: center;
+}
+.gauge-val { font-family: var(--font-display); font-size: 19px; font-weight: 700; color: var(--text); }
+.gauge-lbl { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.gbar { height: 4px; border-radius: 99px; background: rgba(148, 163, 184, 0.16); margin-top: 7px; overflow: hidden; }
+.gbar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--cyan), var(--indigo)); transition: width 0.35s ease; }
+
+/* Touch Sliders */
+.slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.slider-row:last-child { margin-bottom: 0; }
+.slider-lbl { width: 74px; font-size: 12.5px; color: var(--muted); }
+.slider-val { width: 38px; text-align: right; font-family: var(--font-mono); font-size: 12px; color: var(--cyan); }
+input[type="range"] {
+  flex: 1; accent-color: var(--cyan); height: 28px; cursor: pointer;
+}
+
+/* Action Grid inside Drawer */
+.act-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.act-btn {
+  min-height: 40px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: rgba(4, 7, 14, 0.6);
+  color: var(--text); font-size: 12.5px; font-weight: 500;
+}
+.act-btn:hover { border-color: var(--border-hi); background: rgba(56, 189, 248, 0.14); }
+
+/* Persona Switcher */
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg button {
+  min-height: 36px; border-radius: 9px; border: 1px solid var(--border);
+  background: rgba(4, 7, 14, 0.55); color: var(--muted); font-size: 12px; font-weight: 500;
+}
+.seg button.active { background: rgba(56, 189, 248, 0.18); border-color: var(--cyan); color: #fff; }
+
+/* Timers & Notes */
+.preset-row { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.preset-btn {
+  flex: 1; min-height: 34px; padding: 5px 8px; border-radius: 9px;
+  border: 1px solid var(--border); background: rgba(56, 189, 248, 0.1);
+  color: var(--cyan); font-family: var(--font-mono); font-size: 11.5px;
+}
+.preset-btn:hover { background: rgba(56, 189, 248, 0.22); }
+.item-list { display: flex; flex-direction: column; gap: 7px; }
+.list-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border-radius: 10px; background: rgba(4, 7, 14, 0.55);
+  border: 1px solid var(--border); font-size: 12.5px;
+}
+.list-row .t-rem { font-family: var(--font-mono); color: var(--emerald); font-weight: 600; flex: none; }
+.list-row .del-btn {
+  min-width: 28px; min-height: 28px; border-radius: 7px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted); font-size: 14px; line-height: 1;
+}
+.list-row .del-btn:hover { color: #fff; background: var(--danger); border-color: var(--danger); }
+.mini-form { display: flex; gap: 6px; margin-bottom: 9px; }
+.mini-form input {
+  flex: 1; min-width: 0; background: rgba(4, 7, 14, 0.65); border: 1px solid var(--border);
+  border-radius: 9px; padding: 7px 10px; font-size: 13px; outline: none;
+}
+.mini-form input:focus { border-color: var(--cyan); }
+.mini-form button {
+  padding: 0 12px; min-height: 36px; border-radius: 9px; border: 0;
+  background: var(--cyan); color: #04070e; font-weight: 600; font-size: 12.5px;
+}
+.empty-small { font-size: 12px; color: var(--dim); text-align: center; padding: 6px 0; }
+
+/* Floating Toast */
+.toast-wrap { position: fixed; bottom: 92px; left: 50%; transform: translateX(-50%); pointer-events: none; z-index: 60; }
 .toast {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text);
-  background: rgba(15, 23, 42, 0.92);
-  border: 1px solid var(--border-hi);
-  border-radius: 999px;
-  padding: 7px 16px;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text);
+  background: rgba(15, 23, 42, 0.94); border: 1px solid var(--border-hi);
+  border-radius: 999px; padding: 7px 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 18px rgba(56, 189, 248, 0.25);
-  opacity: 0;
-  transform: translateY(8px) scale(0.96);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  opacity: 0; transform: translateY(8px) scale(0.96); transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .toast.show { opacity: 1; transform: translateY(0) scale(1); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes spinRev { to { transform: rotate(-360deg); } }
-@keyframes wave { 0%, 100% { height: 7px; } 50% { height: 27px; } }
-@keyframes waveSmall { 0%, 100% { height: 4px; } 50% { height: 15px; } }
-@keyframes dot { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.9); } 40% { opacity: 1; transform: scale(1.15); } }
 @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.8); } }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes rippleOut {
-  0% { transform: translate(-50%, -50%) scale(0.18); opacity: 0.9; }
-  100% { transform: translate(-50%, -50%) scale(1.65); opacity: 0; }
-}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes rippleOut { 0% { transform: translate(-50%, -50%) scale(0.18); opacity: 0.9; } 100% { transform: translate(-50%, -50%) scale(1.65); opacity: 0; } }
 
-@media (max-width: 720px) {
+@media (max-width: 740px) {
   .top { padding-left: 12px; padding-right: 12px; }
   .brand-sub, .telemetry { display: none; }
   .sug { grid-template-columns: 1fr; }
   .empty h2 { font-size: 24px; }
-  .reactor-wrap { width: 148px; height: 148px; }
-  .orb { width: 98px; height: 98px; }
+  .reactor-wrap { width: 146px; height: 146px; }
+  .orb { width: 96px; height: 96px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -794,6 +533,10 @@ button:active:not(:disabled) {
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="2"/></svg>
       <span>Stop Task</span>
     </button>
+    <button class="ghost" id="drawerBtn" type="button" title="Open PC Controls, Timers, Notes & Personas">
+      <span>HUD Panel</span>
+      <span class="badge-count" id="timerBadge">0</span>
+    </button>
     <button class="ghost" id="aiMode" type="button" title="Switch between Auto (Ollama -> Gemini), Ollama Local, and Gemini Cloud">AI: Auto</button>
     <button class="ghost" id="micMode" type="button">Mic: browser</button>
     <button class="ghost" id="mute" type="button">Sound on</button>
@@ -808,14 +551,14 @@ button:active:not(:disabled) {
       <circle id="holdArc" cx="75" cy="75" r="70"></circle>
     </svg>
     <button class="orb" id="orb" data-state="idle" type="button" aria-label="Tap to toggle listening or hold to talk">
-      <span class="orb-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <span class="orb-bars" id="orbBars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     </button>
     <span class="ring r1" aria-hidden="true"></span>
     <span class="ring r2" aria-hidden="true"></span>
   </div>
   <div class="txt">
     <p id="status">Tap the core to listen · Hold for instant talk</p>
-    <p class="gesture-hint">Drag anywhere to energize field · Double-tap core to pulse · Esc stops tasks</p>
+    <p class="gesture-hint">Voice-reactive core · Drag to energize field · Open HUD Panel for PC controls, timers &amp; notes</p>
     <p class="heard" id="heard"></p>
   </div>
 </section>
@@ -832,12 +575,17 @@ button:active:not(:disabled) {
 <section class="log" id="log" aria-live="polite"></section>
 
 <nav class="quick-strip" id="quickStrip" aria-label="Quick touch commands">
+  <button class="qchip accent" type="button" data-send="explain what is on my screen"><i></i>See Screen</button>
+  <button class="qchip accent" type="button" data-send="summarize my clipboard"><i></i>Clipboard</button>
+  <button class="qchip" type="button" data-send="system status"><i></i>PC Status</button>
   <button class="qchip" type="button" data-send="open spotify"><i></i>Spotify</button>
   <button class="qchip" type="button" data-fill="play  in spotify"><i></i>Play on Spotify</button>
-  <button class="qchip" type="button" data-send="what is the time and date"><i></i>Time &amp; Date</button>
-  <button class="qchip" type="button" data-send="how is the weather today"><i></i>Weather</button>
   <button class="qchip" type="button" data-send="open youtube"><i></i>YouTube</button>
   <button class="qchip" type="button" data-send="open github"><i></i>GitHub</button>
+  <button class="qchip" type="button" data-send="set a 25 minute timer for focus"><i></i>25m Focus</button>
+  <button class="qchip" type="button" data-send="what is the time and date"><i></i>Time &amp; Date</button>
+  <button class="qchip" type="button" data-send="how is the weather today"><i></i>Weather</button>
+  <button class="qchip" type="button" data-send="open vs code"><i></i>VS Code</button>
   <button class="qchip" type="button" data-send="stop music"><i></i>Pause Music</button>
 </nav>
 
@@ -846,7 +594,7 @@ button:active:not(:disabled) {
     <button class="icon" id="micBtn" type="button" aria-label="Tap to toggle voice or hold to talk" title="Tap to toggle voice · Hold to talk">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
     </button>
-    <input id="text" type="text" placeholder="Ask Jarvis anything or tap a quick chip… (↑/↓ history · Esc stops)" aria-label="Command input">
+    <input id="text" type="text" placeholder="Ask Jarvis anything (live streaming) or issue a command… (↑/↓ history)" aria-label="Command input">
     <button class="stop-inline" id="stopInline" type="button" aria-label="Stop current task">
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="2"/></svg>
       <span>Stop</span>
@@ -857,17 +605,103 @@ button:active:not(:disabled) {
   </form>
 </footer>
 
+<!-- Interactive Slide-Over HUD Control Center -->
+<div class="drawer-backdrop" id="drawerBg"></div>
+<aside class="hud-drawer" id="hudDrawer" aria-label="Jarvis Control Center">
+  <div class="drawer-head">
+    <h3>Control Center</h3>
+    <button class="ghost" id="closeDrawer" type="button">Close</button>
+  </div>
+  <div class="drawer-body">
+    <!-- Persona Switcher -->
+    <div class="card">
+      <div class="card-title"><span>Assistant Persona</span><button class="msg-act" id="clearMemBtn" type="button">Reset Memory</button></div>
+      <div class="seg" id="personaSeg">
+        <button type="button" data-persona="butler" class="active">Butler</button>
+        <button type="button" data-persona="coder">Coder</button>
+        <button type="button" data-persona="tutor">Study Tutor</button>
+      </div>
+    </div>
+
+    <!-- Live PC Telemetry -->
+    <div class="card">
+      <div class="card-title"><span>Live PC Telemetry</span><button class="msg-act" id="refreshSys" type="button">Refresh</button></div>
+      <div class="gauges">
+        <div class="gauge">
+          <div class="gauge-val" id="gCpu">--%</div>
+          <div class="gauge-lbl">CPU</div>
+          <div class="gbar"><i id="bCpu"></i></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-val" id="gRam">--%</div>
+          <div class="gauge-lbl" id="gRamSub">RAM</div>
+          <div class="gbar"><i id="bRam"></i></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-val" id="gBat">--%</div>
+          <div class="gauge-lbl" id="gBatSub">Battery</div>
+          <div class="gbar"><i id="bBat"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Touch PC Sliders & One-Tap Actions -->
+    <div class="card">
+      <div class="card-title"><span>PC Controls</span></div>
+      <div class="slider-row">
+        <span class="slider-lbl">Volume</span>
+        <input id="volSlider" type="range" min="0" max="100" value="50" aria-label="System volume">
+        <span class="slider-val" id="volVal">50%</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-lbl">Brightness</span>
+        <input id="brSlider" type="range" min="0" max="100" value="75" aria-label="Screen brightness">
+        <span class="slider-val" id="brVal">75%</span>
+      </div>
+      <div class="act-grid" style="margin-top:12px;">
+        <button class="act-btn" type="button" data-send="explain what is on my screen">See My Screen</button>
+        <button class="act-btn" type="button" data-send="summarize my clipboard">Summarize Clip</button>
+        <button class="act-btn" type="button" data-sysact="screenshot">Screenshot</button>
+        <button class="act-btn" type="button" data-sysact="lock">Lock PC</button>
+        <button class="act-btn" type="button" data-launch="vs code">Open VS Code</button>
+        <button class="act-btn" type="button" data-volact="mute">Mute Toggle</button>
+      </div>
+    </div>
+
+    <!-- Live Countdown Timers -->
+    <div class="card">
+      <div class="card-title"><span>Focus Timers</span></div>
+      <div class="preset-row">
+        <button class="preset-btn" type="button" data-timer="300" data-tlabel="5m Break">+5m</button>
+        <button class="preset-btn" type="button" data-timer="900" data-tlabel="15m Sprint">+15m</button>
+        <button class="preset-btn" type="button" data-timer="1500" data-tlabel="Pomodoro">+25m</button>
+      </div>
+      <div class="item-list" id="timerList"></div>
+    </div>
+
+    <!-- Persistent Quick Notes -->
+    <div class="card">
+      <div class="card-title"><span>Quick Notes</span></div>
+      <form class="mini-form" id="noteForm">
+        <input id="noteInput" type="text" placeholder="Jot down a quick note…" aria-label="New note">
+        <button type="submit">Add</button>
+      </form>
+      <div class="item-list" id="noteList"></div>
+    </div>
+  </div>
+</aside>
+
 <div class="toast-wrap" aria-live="polite"><div class="toast" id="toast"></div></div>
 
 <template id="emptyTpl">
   <div class="empty" id="empty">
     <h2>At your service, Sir.</h2>
-    <p>Tap or hold the glowing core, swipe the quick chips below, or type a command. Swipe left on the task bar or press Esc anytime to cancel.</p>
+    <p>Tap or hold the voice-reactive core, open the HUD Panel for live PC gauges, timers &amp; notes, or tap any quick command below.</p>
     <div class="sug">
+      <button type="button" data-send="explain what is on my screen"><b>Screen Vision</b><span>Captures &amp; explains what's on your screen</span></button>
       <button type="button" data-send="open spotify"><b>Open Spotify</b><span>Launches your Spotify desktop app</span></button>
-      <button type="button" data-fill="play  in spotify"><b>Play on Spotify</b><span>Searches &amp; plays directly in Spotify</span></button>
-      <button type="button" data-send="what is the time and date"><b>Time &amp; Date</b><span>Instant local date and time check</span></button>
-      <button type="button" data-send="how is the weather today"><b>Live Weather</b><span>Checks current weather conditions</span></button>
+      <button type="button" data-send="system status"><b>Live PC Status</b><span>Checks CPU, RAM, and battery level</span></button>
+      <button type="button" data-send="summarize my clipboard"><b>Summarize Clipboard</b><span>Reads &amp; explains what you copied</span></button>
     </div>
   </div>
 </template>
@@ -875,34 +709,39 @@ button:active:not(:disabled) {
 <script>
 (function(){
   var $ = function(id){ return document.getElementById(id); };
-  var orb = $('orb'), reactorWrap = $('reactorWrap'), holdArc = $('holdArc');
+  var orb = $('orb'), orbBars = $('orbBars').querySelectorAll('i');
+  var reactorWrap = $('reactorWrap'), holdArc = $('holdArc');
   var statusEl = $('status'), heardEl = $('heard'), log = $('log');
   var input = $('text'), go = $('go'), micBtn = $('micBtn');
   var stopTop = $('stopTop'), stopInline = $('stopInline'), taskBanner = $('taskBanner');
   var taskLabel = $('taskLabel'), taskTimer = $('taskTimer'), abortBanner = $('abortBanner');
   var toastEl = $('toast'), clockTxt = $('clockTxt'), latTxt = $('latTxt');
+  var hudDrawer = $('hudDrawer'), drawerBg = $('drawerBg'), timerBadge = $('timerBadge');
 
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   var rec = null, listening = false, awaiting = false, awaitTimer = null, heardTimer = null, sayId = 0;
   var speaking = false, busy = false, muted = false, offline = false;
   var useServer = false, srvActive = false, epoch = 0;
-  var currentAbort = null, currentTyping = null, timerInt = null, taskStart = 0;
-  var toastTimer = null;
+  var currentAbort = null, timerInt = null, taskStart = 0, toastTimer = null;
   var cmdHistory = [], histIdx = -1;
+  var activeTimers = [], savedNotes = [];
+  var serverOnline = false, drawerOpen = false, sysPollInt = null;
 
   try { useServer = localStorage.getItem('jarvis-mic') === 'server'; } catch(_){}
   try {
-    var savedHist = JSON.parse(localStorage.getItem('jarvis-history') || '[]');
-    if(Array.isArray(savedHist)) cmdHistory = savedHist.slice(0, 30);
+    var sh = JSON.parse(localStorage.getItem('jarvis-history') || '[]');
+    if(Array.isArray(sh)) cmdHistory = sh.slice(0, 30);
+    var sn = JSON.parse(localStorage.getItem('jarvis-notes') || '[]');
+    if(Array.isArray(sn)) savedNotes = sn;
+    var st = JSON.parse(localStorage.getItem('jarvis-timers') || '[]');
+    if(Array.isArray(st)) activeTimers = st;
   } catch(_){}
 
   var WAKE = /(jarvis|jarvas|jervis|jarves|charvis|jarvice|gervais|travis|jarvi)/i;
 
-  /* --- Haptics & Synthesized HUD Micro-Sounds (Web Audio API) --- */
+  /* --- Haptics & Synthesized HUD Sound Effects --- */
   var audioCtx = null;
-  function haptic(pattern){
-    try { if(navigator.vibrate) navigator.vibrate(pattern); } catch(_){}
-  }
+  function haptic(pattern){ try { if(navigator.vibrate) navigator.vibrate(pattern); } catch(_){} }
   function beep(freq, dur, type, vol){
     if(muted) return;
     try {
@@ -917,16 +756,15 @@ button:active:not(:disabled) {
       osc.frequency.exponentialRampToValueAtTime(freq * 1.18, audioCtx.currentTime + (dur || 0.08));
       gain.gain.setValueAtTime(vol || 0.045, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (dur || 0.08));
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + (dur || 0.08));
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + (dur || 0.08));
     } catch(_){}
   }
   function sfxTap(){ beep(520, 0.055, 'sine', 0.032); haptic(10); }
   function sfxWake(){ beep(640, 0.09, 'triangle', 0.05); setTimeout(function(){ beep(880, 0.11, 'sine', 0.045); }, 70); haptic([15, 25, 18]); }
   function sfxSend(){ beep(440, 0.07, 'sine', 0.04); haptic(12); }
   function sfxCancel(){ beep(260, 0.13, 'sawtooth', 0.035); haptic([25, 30, 25]); }
+  function sfxChime(){ beep(784, 0.14, 'sine', 0.06); setTimeout(function(){ beep(1046, 0.22, 'sine', 0.06); }, 140); haptic([40, 40, 60]); }
 
   function showToast(msg){
     toastEl.textContent = msg;
@@ -935,44 +773,59 @@ button:active:not(:disabled) {
     toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 2200);
   }
 
+  /* --- Real Live Microphone Web Audio Analyser --- */
+  var micStream = null, analyser = null, freqData = null;
+  function startMicVisualizer(){
+    if(analyser || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+      micStream = stream;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return;
+      if(!audioCtx) audioCtx = new AC();
+      if(audioCtx.state === 'suspended') audioCtx.resume();
+      var src = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      analyser.smoothingTimeConstant = 0.72;
+      src.connect(analyser);
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+    }).catch(function(){ /* permission denied or unavailable; procedural fallback stays active */ });
+  }
+  function stopMicVisualizer(){
+    if(micStream){
+      try { micStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_){}
+      micStream = null;
+    }
+    analyser = null; freqData = null;
+  }
+
   /* --- Touch Ripple Anywhere --- */
-  function spawnRipple(x, y, color){
+  function spawnRipple(x, y){
     var el = document.createElement('div');
     el.className = 'touch-ripple';
-    el.style.left = x + 'px';
-    el.style.top = y + 'px';
-    if(color) el.style.borderColor = color;
+    el.style.left = x + 'px'; el.style.top = y + 'px';
     document.body.appendChild(el);
     setTimeout(function(){ el.remove(); }, 540);
   }
 
-  /* --- Live Interactive Neural Particle Background --- */
-  var bgCanvas = $('bgCanvas');
-  var bgCtx = bgCanvas.getContext('2d');
-  var particles = [];
-  var shockwaves = [];
-  var pointer = { x: -999, y: -999, active: false };
+  /* --- Live Particle Field & Voice-Reactive Reactor Waveform --- */
+  var bgCanvas = $('bgCanvas'), bgCtx = bgCanvas.getContext('2d');
+  var waveCanvas = $('waveCanvas'), waveCtx = waveCanvas.getContext('2d');
+  var particles = [], shockwaves = [], pointer = { x: -999, y: -999, active: false };
+  var wavePhase = 0, energyBoost = 0;
 
   function resizeBg(){
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
     bgCanvas.width = Math.floor(window.innerWidth * dpr);
     bgCanvas.height = Math.floor(window.innerHeight * dpr);
     bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var targetCount = Math.min(72, Math.max(28, Math.floor((window.innerWidth * window.innerHeight) / 18000)));
-    while(particles.length < targetCount){
-      particles.push({
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight,
-        vx: (Math.random() - 0.5) * 0.45,
-        vy: (Math.random() - 0.5) * 0.45,
-        r: Math.random() * 1.8 + 1.1
-      });
+    var count = Math.min(68, Math.max(26, Math.floor((window.innerWidth * window.innerHeight) / 19000)));
+    while(particles.length < count){
+      particles.push({ x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight, vx: (Math.random() - 0.5) * 0.45, vy: (Math.random() - 0.5) * 0.45, r: Math.random() * 1.8 + 1.1 });
     }
-    if(particles.length > targetCount) particles.length = targetCount;
+    if(particles.length > count) particles.length = count;
   }
-  function pushShockwave(x, y, col){
-    shockwaves.push({ x: x, y: y, r: 10, max: 190, alpha: 0.65, color: col || '56, 189, 248' });
-  }
+  function pushShockwave(x, y, col){ shockwaves.push({ x: x, y: y, r: 10, max: 190, alpha: 0.65, color: col || '56, 189, 248' }); }
   function stateAccentRGB(){
     var st = orb.dataset.state;
     if(st === 'thinking') return '129, 140, 248';
@@ -980,149 +833,319 @@ button:active:not(:disabled) {
     return '56, 189, 248';
   }
 
-  /* --- Live Reactor Waveform Canvas --- */
-  var waveCanvas = $('waveCanvas');
-  var waveCtx = waveCanvas.getContext('2d');
-  var wavePhase = 0;
-  var energyBoost = 0;
-
   function animateVisuals(){
     var w = window.innerWidth, h = window.innerHeight;
     bgCtx.clearRect(0, 0, w, h);
     var rgb = stateAccentRGB();
-    var speedMul = (orb.dataset.state === 'thinking') ? 2.1 : (orb.dataset.state === 'awake' || orb.dataset.state === 'speaking') ? 1.6 : 1.0;
+    var speedMul = orb.dataset.state === 'thinking' ? 2.1 : (orb.dataset.state === 'awake' || orb.dataset.state === 'speaking') ? 1.6 : 1.0;
 
     for(var i = 0; i < particles.length; i++){
       var p = particles[i];
       if(pointer.active){
-        var dx = pointer.x - p.x, dy = pointer.y - p.y;
-        var dist = Math.hypot(dx, dy);
+        var dx = pointer.x - p.x, dy = pointer.y - p.y, dist = Math.hypot(dx, dy);
         if(dist < 170 && dist > 1){
           var pull = (170 - dist) / 170 * 0.08;
-          p.vx += (dx / dist) * pull;
-          p.vy += (dy / dist) * pull;
+          p.vx += (dx / dist) * pull; p.vy += (dy / dist) * pull;
         }
       }
-      p.vx *= 0.985;
-      p.vy *= 0.985;
-      p.x += p.vx * speedMul;
-      p.y += p.vy * speedMul;
+      p.vx *= 0.985; p.vy *= 0.985;
+      p.x += p.vx * speedMul; p.y += p.vy * speedMul;
       if(p.x < 0) p.x = w; else if(p.x > w) p.x = 0;
       if(p.y < 0) p.y = h; else if(p.y > h) p.y = 0;
 
-      bgCtx.beginPath();
-      bgCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      bgCtx.fillStyle = 'rgba(' + rgb + ', 0.55)';
-      bgCtx.fill();
+      bgCtx.beginPath(); bgCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      bgCtx.fillStyle = 'rgba(' + rgb + ', 0.55)'; bgCtx.fill();
 
       for(var j = i + 1; j < particles.length; j++){
-        var q = particles[j];
-        var d = Math.hypot(p.x - q.x, p.y - q.y);
-        if(d < 115){
-          bgCtx.beginPath();
-          bgCtx.moveTo(p.x, p.y);
-          bgCtx.lineTo(q.x, q.y);
-          bgCtx.strokeStyle = 'rgba(' + rgb + ', ' + ((1 - d / 115) * 0.16).toFixed(3) + ')';
-          bgCtx.lineWidth = 1;
-          bgCtx.stroke();
+        var q = particles[j], d = Math.hypot(p.x - q.x, p.y - q.y);
+        if(d < 110){
+          bgCtx.beginPath(); bgCtx.moveTo(p.x, p.y); bgCtx.lineTo(q.x, q.y);
+          bgCtx.strokeStyle = 'rgba(' + rgb + ', ' + ((1 - d / 110) * 0.16).toFixed(3) + ')';
+          bgCtx.lineWidth = 1; bgCtx.stroke();
         }
       }
       if(pointer.active){
         var dp = Math.hypot(p.x - pointer.x, p.y - pointer.y);
         if(dp < 140){
-          bgCtx.beginPath();
-          bgCtx.moveTo(p.x, p.y);
-          bgCtx.lineTo(pointer.x, pointer.y);
+          bgCtx.beginPath(); bgCtx.moveTo(p.x, p.y); bgCtx.lineTo(pointer.x, pointer.y);
           bgCtx.strokeStyle = 'rgba(' + rgb + ', ' + ((1 - dp / 140) * 0.34).toFixed(3) + ')';
-          bgCtx.lineWidth = 1.1;
-          bgCtx.stroke();
+          bgCtx.lineWidth = 1.1; bgCtx.stroke();
         }
       }
     }
 
     for(var s = shockwaves.length - 1; s >= 0; s--){
       var sw = shockwaves[s];
-      sw.r += 5.5;
-      sw.alpha *= 0.93;
-      bgCtx.beginPath();
-      bgCtx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+      sw.r += 5.5; sw.alpha *= 0.93;
+      bgCtx.beginPath(); bgCtx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
       bgCtx.strokeStyle = 'rgba(' + sw.color + ', ' + sw.alpha.toFixed(3) + ')';
-      bgCtx.lineWidth = 1.6;
-      bgCtx.stroke();
+      bgCtx.lineWidth = 1.6; bgCtx.stroke();
       if(sw.r > sw.max || sw.alpha < 0.02) shockwaves.splice(s, 1);
     }
 
-    /* Reactor radial waveform ring */
-    wavePhase += (orb.dataset.state === 'thinking' ? 0.12 : orb.dataset.state === 'awake' || orb.dataset.state === 'speaking' ? 0.09 : 0.035);
+    /* Voice-reactive bar & waveform animation */
+    var liveLevel = 0;
+    var compact = document.body.classList.contains('has-msgs');
+    var maxBar = compact ? 15 : 30;
+    var minBar = compact ? 4 : 7;
+
+    if(analyser && freqData && listening && !speaking){
+      analyser.getByteFrequencyData(freqData);
+      var sum = 0;
+      for(var b = 0; b < 5; b++){
+        var v = freqData[b * 2 + 1] / 255;
+        sum += v;
+        orbBars[b].style.height = (minBar + v * (maxBar - minBar)).toFixed(1) + 'px';
+      }
+      liveLevel = sum / 5;
+    } else {
+      wavePhase += (orb.dataset.state === 'thinking' ? 0.14 : (orb.dataset.state === 'awake' || orb.dataset.state === 'speaking') ? 0.11 : 0.04);
+      var act = (orb.dataset.state === 'awake' || orb.dataset.state === 'speaking' || orb.dataset.state === 'thinking') ? 1 : 0.18;
+      for(var b2 = 0; b2 < 5; b2++){
+        var hVal = minBar + (0.5 + 0.5 * Math.sin(wavePhase * 2.2 + b2 * 0.95)) * (maxBar - minBar) * act;
+        orbBars[b2].style.height = hVal.toFixed(1) + 'px';
+      }
+      liveLevel = act * 0.45;
+    }
+
+    wavePhase += 0.035;
     energyBoost *= 0.92;
     var cw = waveCanvas.width, ch = waveCanvas.height, cx = cw / 2, cy = ch / 2;
     waveCtx.clearRect(0, 0, cw, ch);
     var baseR = 76;
-    var amp = (orb.dataset.state === 'speaking' || orb.dataset.state === 'awake') ? 9 : (orb.dataset.state === 'thinking' ? 7 : 2.5);
-    amp += energyBoost * 12;
+    var amp = 2.5 + liveLevel * 18 + energyBoost * 12;
     waveCtx.beginPath();
     var segs = 64;
     for(var k = 0; k <= segs; k++){
       var ang = (k / segs) * Math.PI * 2;
-      var n = Math.sin(ang * 5 + wavePhase) * amp + Math.cos(ang * 9 - wavePhase * 1.4) * (amp * 0.45);
+      var n = Math.sin(ang * 5 + wavePhase) * amp + Math.cos(ang * 9 - wavePhase * 1.4) * (amp * 0.42);
       var rr = baseR + n;
-      var px = cx + Math.cos(ang) * rr;
-      var py = cy + Math.sin(ang) * rr;
+      var px = cx + Math.cos(ang) * rr, py = cy + Math.sin(ang) * rr;
       if(k === 0) waveCtx.moveTo(px, py); else waveCtx.lineTo(px, py);
     }
     waveCtx.closePath();
-    waveCtx.strokeStyle = 'rgba(' + rgb + ', 0.55)';
+    waveCtx.strokeStyle = 'rgba(' + rgb + ', 0.6)';
     waveCtx.lineWidth = 2;
     waveCtx.stroke();
 
     requestAnimationFrame(animateVisuals);
   }
 
-  /* Global pointer/touch tracking for live neural field + ripples */
   window.addEventListener('pointermove', function(e){
-    pointer.x = e.clientX;
-    pointer.y = e.clientY;
-    pointer.active = true;
-    /* 3D magnetic tilt on reactor */
+    pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
     var rect = reactorWrap.getBoundingClientRect();
-    var rx = rect.left + rect.width / 2;
-    var ry = rect.top + rect.height / 2;
-    var dx = (e.clientX - rx) / Math.max(120, window.innerWidth * 0.35);
-    var dy = (e.clientY - ry) / Math.max(120, window.innerHeight * 0.35);
-    dx = Math.max(-1, Math.min(1, dx));
-    dy = Math.max(-1, Math.min(1, dy));
+    var dx = Math.max(-1, Math.min(1, (e.clientX - (rect.left + rect.width / 2)) / Math.max(120, window.innerWidth * 0.35)));
+    var dy = Math.max(-1, Math.min(1, (e.clientY - (rect.top + rect.height / 2)) / Math.max(120, window.innerHeight * 0.35)));
     reactorWrap.style.transform = 'rotateX(' + (-dy * 12).toFixed(1) + 'deg) rotateY(' + (dx * 12).toFixed(1) + 'deg)';
     orb.style.setProperty('--gx', (50 + dx * 24).toFixed(0) + '%');
     orb.style.setProperty('--gy', (50 + dy * 24).toFixed(0) + '%');
   }, { passive: true });
-
-  window.addEventListener('pointerleave', function(){
-    pointer.active = false;
-    reactorWrap.style.transform = 'rotateX(0deg) rotateY(0deg)';
-  });
-
+  window.addEventListener('pointerleave', function(){ pointer.active = false; reactorWrap.style.transform = 'rotateX(0deg) rotateY(0deg)'; });
   document.addEventListener('pointerdown', function(e){
-    pointer.x = e.clientX;
-    pointer.y = e.clientY;
-    pointer.active = true;
+    pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
     pushShockwave(e.clientX, e.clientY, stateAccentRGB());
-    if(e.target.closest('button')){
-      spawnRipple(e.clientX, e.clientY);
-      energyBoost = Math.min(1.4, energyBoost + 0.55);
-    }
+    if(e.target.closest('button')){ spawnRipple(e.clientX, e.clientY); energyBoost = Math.min(1.4, energyBoost + 0.55); }
   }, { passive: true });
-
   window.addEventListener('resize', resizeBg);
   resizeBg();
   requestAnimationFrame(animateVisuals);
 
-  /* Live Telemetry Clock */
-  function tickClock(){
-    var d = new Date();
-    clockTxt.textContent = d.toLocaleTimeString([], { hour12: false });
+  /* Clock & Live Timers Ticker */
+  function fmtSecs(s){
+    s = Math.max(0, Math.ceil(s));
+    var m = Math.floor(s / 60), r = s % 60;
+    return String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
   }
-  tickClock();
-  setInterval(tickClock, 1000);
+  function renderTimers(){
+    var now = Date.now() / 1000;
+    var kept = [];
+    for(var i = 0; i < activeTimers.length; i++){
+      var t = activeTimers[i];
+      if(t.ends_at <= now){
+        if(!t.fired){
+          t.fired = true;
+          sfxChime();
+          showToast('Timer finished: ' + t.label);
+          say('Sir, your ' + t.label + ' timer is complete.');
+        }
+      } else {
+        kept.push(t);
+      }
+    }
+    if(kept.length !== activeTimers.length){
+      activeTimers = kept;
+      try { localStorage.setItem('jarvis-timers', JSON.stringify(activeTimers)); } catch(_){}
+    }
+    timerBadge.textContent = String(activeTimers.length);
+    timerBadge.classList.toggle('show', activeTimers.length > 0);
+    var box = $('timerList');
+    if(!activeTimers.length){
+      box.innerHTML = '<div class="empty-small">No active timers — tap a preset above or say "set a 5 minute timer".</div>';
+      return;
+    }
+    box.innerHTML = activeTimers.map(function(t){
+      return '<div class="list-row"><span>' + escapeHtml(t.label) + '</span><span class="t-rem">' + fmtSecs(t.ends_at - now) + '</span><button class="del-btn" type="button" data-deltimer="' + t.id + '" aria-label="Cancel timer">×</button></div>';
+    }).join('');
+  }
+  function renderNotes(){
+    var box = $('noteList');
+    if(!savedNotes.length){
+      box.innerHTML = '<div class="empty-small">No notes yet — add one above or say "note down...".</div>';
+      return;
+    }
+    box.innerHTML = savedNotes.map(function(n){
+      return '<div class="list-row"><span style="flex:1;min-width:0;overflow-wrap:anywhere;">' + escapeHtml(n.text) + '</span><button class="del-btn" type="button" data-delnote="' + n.id + '" aria-label="Delete note">×</button></div>';
+    }).join('');
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){ return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]; });
+  }
+  function tickEverySecond(){
+    clockTxt.textContent = new Date().toLocaleTimeString([], { hour12: false });
+    renderTimers();
+  }
+  tickEverySecond();
+  renderNotes();
+  setInterval(tickEverySecond, 1000);
+
+  /* --- Drawer & System Telemetry --- */
+  function setDrawer(open){
+    drawerOpen = open;
+    hudDrawer.classList.toggle('open', open);
+    drawerBg.classList.toggle('open', open);
+    $('drawerBtn').classList.toggle('active-pill', open);
+    clearInterval(sysPollInt);
+    if(open){
+      fetchSystem();
+      sysPollInt = setInterval(fetchSystem, 4000);
+    }
+  }
+  function applyGauge(valEl, barEl, pct){
+    if(pct === null || pct === undefined){ valEl.textContent = '--%'; barEl.style.width = '0%'; return; }
+    valEl.textContent = pct + '%';
+    barEl.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  }
+  function updatePersonaUI(p){
+    var btns = $('personaSeg').querySelectorAll('button');
+    btns.forEach(function(b){ b.classList.toggle('active', b.dataset.persona === p); });
+  }
+  function fetchSystem(){
+    fetch('/api/system').then(function(r){ return r.json(); }).then(function(d){
+      applyGauge($('gCpu'), $('bCpu'), d.cpu);
+      applyGauge($('gRam'), $('bRam'), d.ram_pct);
+      if(d.ram_used_gb != null && d.ram_total_gb != null) $('gRamSub').textContent = d.ram_used_gb + '/' + d.ram_total_gb + 'GB';
+      applyGauge($('gBat'), $('bBat'), d.battery_pct);
+      if(d.battery_plugged != null) $('gBatSub').textContent = d.battery_plugged ? 'Charging' : 'Battery';
+      if(d.brightness != null){ $('brSlider').value = d.brightness; $('brVal').textContent = d.brightness + '%'; }
+      if(d.persona) updatePersonaUI(d.persona);
+      if(Array.isArray(d.notes)){ savedNotes = d.notes; renderNotes(); }
+      if(Array.isArray(d.timers)){ activeTimers = d.timers; renderTimers(); }
+    }).catch(function(){});
+  }
+
+  $('drawerBtn').addEventListener('click', function(){ sfxTap(); setDrawer(!drawerOpen); });
+  $('closeDrawer').addEventListener('click', function(){ sfxTap(); setDrawer(false); });
+  drawerBg.addEventListener('click', function(){ setDrawer(false); });
+  $('refreshSys').addEventListener('click', function(){ sfxTap(); fetchSystem(); showToast('Telemetry refreshed'); });
+
+  $('personaSeg').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    sfxTap();
+    var mode = b.dataset.persona;
+    updatePersonaUI(mode);
+    showToast('Persona → ' + b.textContent);
+    fetch('/api/persona', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ persona: mode }) }).catch(function(){});
+  });
+  $('clearMemBtn').addEventListener('click', function(){
+    sfxTap();
+    fetch('/api/memory/clear', { method: 'POST' }).catch(function(){});
+    showToast('Conversation memory reset');
+  });
+
+  var volTimer = null, brTimer = null;
+  $('volSlider').addEventListener('input', function(){
+    $('volVal').textContent = this.value + '%';
+    var v = Number(this.value);
+    clearTimeout(volTimer);
+    volTimer = setTimeout(function(){
+      fetch('/api/system/volume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level: v }) }).catch(function(){});
+    }, 120);
+  });
+  $('brSlider').addEventListener('input', function(){
+    $('brVal').textContent = this.value + '%';
+    var v = Number(this.value);
+    clearTimeout(brTimer);
+    brTimer = setTimeout(function(){
+      fetch('/api/system/brightness', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level: v }) }).catch(function(){});
+    }, 120);
+  });
+
+  hudDrawer.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    if(b.hasAttribute('data-send')){ sfxTap(); setDrawer(false); send(b.dataset.send); return; }
+    if(b.hasAttribute('data-sysact')){
+      sfxTap();
+      fetch('/api/system/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: b.dataset.sysact }) })
+        .then(function(r){ return r.json(); }).then(function(d){ showToast(d.message || 'Done'); }).catch(function(){ showToast('Connect server.py for PC actions'); });
+      return;
+    }
+    if(b.hasAttribute('data-launch')){
+      sfxTap();
+      fetch('/api/system/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'launch', app: b.dataset.launch }) })
+        .then(function(r){ return r.json(); }).then(function(d){ showToast(d.message || 'Launched'); }).catch(function(){ showToast('Connect server.py to launch apps'); });
+      return;
+    }
+    if(b.hasAttribute('data-volact')){
+      sfxTap();
+      fetch('/api/system/volume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: b.dataset.volact }) }).catch(function(){});
+      showToast('Volume mute toggled');
+      return;
+    }
+    if(b.hasAttribute('data-timer')){
+      sfxTap();
+      var secs = Number(b.dataset.timer), lbl = b.dataset.tlabel || 'Focus Timer';
+      var localT = { id: 't_' + Date.now(), label: lbl, duration: secs, ends_at: Date.now() / 1000 + secs };
+      activeTimers.push(localT);
+      try { localStorage.setItem('jarvis-timers', JSON.stringify(activeTimers)); } catch(_){}
+      renderTimers();
+      showToast('Timer started: ' + lbl);
+      fetch('/api/timers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seconds: secs, label: lbl }) })
+        .then(function(r){ return r.json(); }).then(function(d){ if(Array.isArray(d.timers)){ activeTimers = d.timers; renderTimers(); } }).catch(function(){});
+      return;
+    }
+    if(b.hasAttribute('data-deltimer')){
+      sfxTap();
+      var tid = b.dataset.deltimer;
+      activeTimers = activeTimers.filter(function(t){ return t.id !== tid; });
+      try { localStorage.setItem('jarvis-timers', JSON.stringify(activeTimers)); } catch(_){}
+      renderTimers();
+      fetch('/api/timers/' + encodeURIComponent(tid), { method: 'DELETE' }).catch(function(){});
+      return;
+    }
+    if(b.hasAttribute('data-delnote')){
+      sfxTap();
+      var nid = b.dataset.delnote;
+      savedNotes = savedNotes.filter(function(n){ return n.id !== nid; });
+      try { localStorage.setItem('jarvis-notes', JSON.stringify(savedNotes)); } catch(_){}
+      renderNotes();
+      fetch('/api/notes/' + encodeURIComponent(nid), { method: 'DELETE' }).catch(function(){});
+    }
+  });
+
+  $('noteForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var txt = $('noteInput').value.trim();
+    if(!txt) return;
+    sfxTap();
+    $('noteInput').value = '';
+    var localN = { id: 'n_' + Date.now(), text: txt };
+    savedNotes.unshift(localN);
+    try { localStorage.setItem('jarvis-notes', JSON.stringify(savedNotes)); } catch(_){}
+    renderNotes();
+    showToast('Note saved');
+    fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: txt }) })
+      .then(function(r){ return r.json(); }).then(function(d){ if(Array.isArray(d.notes)){ savedNotes = d.notes; renderNotes(); } }).catch(function(){});
+  });
 
   /* --- Core Assistant State Helpers --- */
   function setState(s, msg){ orb.dataset.state = s; if(msg) statusEl.textContent = msg; }
@@ -1139,15 +1162,9 @@ button:active:not(:disabled) {
     taskLabel.textContent = label;
     taskTimer.textContent = '0.0s';
     clearInterval(timerInt);
-    timerInt = setInterval(function(){
-      taskTimer.textContent = ((performance.now() - taskStart) / 1000).toFixed(1) + 's';
-    }, 100);
+    timerInt = setInterval(function(){ taskTimer.textContent = ((performance.now() - taskStart) / 1000).toFixed(1) + 's'; }, 100);
   }
-  function stopTimer(){
-    clearInterval(timerInt);
-    timerInt = null;
-  }
-
+  function stopTimer(){ clearInterval(timerInt); timerInt = null; }
   function idle(){
     micBtn.classList.toggle('on', listening);
     updateStopControls();
@@ -1156,7 +1173,6 @@ button:active:not(:disabled) {
     if(awaiting) return setState('awake', 'I’m listening, Sir…');
     setState('listening', 'Say “Jarvis” (or hold core / press Space)');
   }
-
   function showHeard(t, isFinal){
     heardEl.textContent = t ? ('Heard: “' + t + '”') : '';
     clearTimeout(heardTimer);
@@ -1166,20 +1182,13 @@ button:active:not(:disabled) {
   function copyText(txt){
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(txt).then(function(){ showToast('Copied to clipboard'); }).catch(function(){ fallbackCopy(txt); });
-    } else {
-      fallbackCopy(txt);
-    }
+    } else { fallbackCopy(txt); }
   }
   function fallbackCopy(txt){
     try {
       var ta = document.createElement('textarea');
-      ta.value = txt;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
+      ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
       showToast('Copied to clipboard');
     } catch(_){ showToast('Copy unavailable'); }
   }
@@ -1189,60 +1198,61 @@ button:active:not(:disabled) {
     log.innerHTML = '';
     log.appendChild($('emptyTpl').content.cloneNode(true));
   }
+  function createStreamingMsg(){
+    var e = $('empty'); if(e) e.remove();
+    document.body.classList.add('has-msgs');
+    var d = document.createElement('div');
+    d.className = 'msg jarvis';
+    var wrap = document.createElement('div');
+    wrap.className = 'msg-body';
+    var p = document.createElement('div');
+    var span = document.createElement('span');
+    var cur = document.createElement('span');
+    cur.className = 'stream-cursor';
+    p.appendChild(span);
+    p.appendChild(cur);
+    wrap.appendChild(p);
+    var acts = document.createElement('div');
+    acts.className = 'msg-actions';
+    acts.style.display = 'none';
+    wrap.appendChild(acts);
+    d.appendChild(wrap);
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+    return {
+      el: d,
+      setText: function(t){ span.textContent = t; log.scrollTop = log.scrollHeight; },
+      finish: function(finalText){
+        cur.remove();
+        span.textContent = finalText;
+        acts.style.display = 'flex';
+        var bCopy = document.createElement('button');
+        bCopy.type = 'button'; bCopy.className = 'msg-act'; bCopy.textContent = 'Copy'; bCopy.dataset.copy = finalText;
+        var bSpeak = document.createElement('button');
+        bSpeak.type = 'button'; bSpeak.className = 'msg-act'; bSpeak.textContent = 'Speak'; bSpeak.dataset.speak = finalText;
+        acts.appendChild(bCopy); acts.appendChild(bSpeak);
+        log.scrollTop = log.scrollHeight;
+      }
+    };
+  }
   function addMsg(who, text){
     var e = $('empty'); if(e) e.remove();
     document.body.classList.add('has-msgs');
     var d = document.createElement('div');
     d.className = 'msg ' + who;
-    if(who === 'jarvis'){
-      var wrap = document.createElement('div');
-      wrap.className = 'msg-body';
-      var p = document.createElement('div');
-      p.textContent = text;
-      wrap.appendChild(p);
-      var acts = document.createElement('div');
-      acts.className = 'msg-actions';
-      var bCopy = document.createElement('button');
-      bCopy.type = 'button';
-      bCopy.className = 'msg-act';
-      bCopy.textContent = 'Copy';
-      bCopy.dataset.copy = text;
-      var bSpeak = document.createElement('button');
-      bSpeak.type = 'button';
-      bSpeak.className = 'msg-act';
-      bSpeak.textContent = 'Speak';
-      bSpeak.dataset.speak = text;
-      acts.appendChild(bCopy);
-      acts.appendChild(bSpeak);
-      wrap.appendChild(acts);
-      d.appendChild(wrap);
-    } else if(who === 'you'){
-      var uWrap = document.createElement('div');
-      uWrap.className = 'msg-body';
-      var up = document.createElement('div');
-      up.textContent = text;
+    if(who === 'you'){
+      var uWrap = document.createElement('div'); uWrap.className = 'msg-body';
+      var up = document.createElement('div'); up.textContent = text;
       uWrap.appendChild(up);
-      var uActs = document.createElement('div');
-      uActs.className = 'msg-actions';
+      var uActs = document.createElement('div'); uActs.className = 'msg-actions';
       var bRe = document.createElement('button');
-      bRe.type = 'button';
-      bRe.className = 'msg-act';
-      bRe.textContent = 'Re-run';
-      bRe.dataset.send = text;
-      uActs.appendChild(bRe);
-      uWrap.appendChild(uActs);
-      d.appendChild(uWrap);
+      bRe.type = 'button'; bRe.className = 'msg-act'; bRe.textContent = 'Re-run'; bRe.dataset.send = text;
+      uActs.appendChild(bRe); uWrap.appendChild(uActs); d.appendChild(uWrap);
+    } else if(who === 'jarvis'){
+      var s = createStreamingMsg(); s.finish(text); return s.el;
     } else {
       d.textContent = text;
     }
-    log.appendChild(d);
-    log.scrollTop = log.scrollHeight;
-    return d;
-  }
-  function addTyping(){
-    var d = document.createElement('div');
-    d.className = 'msg jarvis typing';
-    d.innerHTML = '<div><span></span><span></span><span></span></div>';
     log.appendChild(d);
     log.scrollTop = log.scrollHeight;
     return d;
@@ -1251,50 +1261,33 @@ button:active:not(:disabled) {
   /* Stop / Cancel Active Task */
   function cancelActiveTask(){
     if(!busy && !speaking) return;
-    sfxCancel();
-    energyBoost = 1.2;
+    sfxCancel(); energyBoost = 1.2;
     if(currentAbort){ try { currentAbort.abort(); } catch(_){} currentAbort = null; }
     if('speechSynthesis' in window){ try { speechSynthesis.cancel(); } catch(_){} }
-    sayId++;
-    speaking = false;
-    busy = false;
-    if(currentTyping){ currentTyping.remove(); currentTyping = null; }
+    sayId++; speaking = false; busy = false;
     stopTimer();
     fetch('/api/stop', { method: 'POST' }).catch(function(){});
     addMsg('cancelled', 'Task cancelled, Sir.');
     latTxt.textContent = 'STOPPED';
     showToast('Task cancelled');
-    idle();
-    resumeRec();
+    idle(); resumeRec();
   }
 
-  /* Swipe-left gesture on Active Task Banner to cancel */
+  /* Swipe-left to cancel task banner */
   var swipeStartX = 0, swipingBanner = false;
-  taskBanner.addEventListener('pointerdown', function(e){
-    if(e.target.closest('button')) return;
-    swipeStartX = e.clientX;
-    swipingBanner = true;
-  }, { passive: true });
+  taskBanner.addEventListener('pointerdown', function(e){ if(!e.target.closest('button')){ swipeStartX = e.clientX; swipingBanner = true; } }, { passive: true });
   taskBanner.addEventListener('pointermove', function(e){
     if(!swipingBanner) return;
     var dx = e.clientX - swipeStartX;
-    if(dx < 0){
-      taskBanner.style.transform = 'translateX(' + Math.max(-140, dx) + 'px)';
-      taskBanner.style.opacity = String(Math.max(0.25, 1 + dx / 150));
-    }
+    if(dx < 0){ taskBanner.style.transform = 'translateX(' + Math.max(-140, dx) + 'px)'; taskBanner.style.opacity = String(Math.max(0.25, 1 + dx / 150)); }
   }, { passive: true });
   taskBanner.addEventListener('pointerup', function(e){
     if(!swipingBanner) return;
     swipingBanner = false;
-    var dx = e.clientX - swipeStartX;
-    if(dx < -70){ cancelActiveTask(); }
+    if(e.clientX - swipeStartX < -70) cancelActiveTask();
     else { taskBanner.style.transform = ''; taskBanner.style.opacity = ''; }
   });
-  taskBanner.addEventListener('pointercancel', function(){
-    swipingBanner = false;
-    taskBanner.style.transform = '';
-    taskBanner.style.opacity = '';
-  });
+  taskBanner.addEventListener('pointercancel', function(){ swipingBanner = false; taskBanner.style.transform = ''; taskBanner.style.opacity = ''; });
 
   /* Speaking */
   function say(text){
@@ -1303,21 +1296,15 @@ button:active:not(:disabled) {
       var id = ++sayId, finished = false, guard;
       function end(){
         if(finished) return;
-        finished = true;
-        clearTimeout(guard);
+        finished = true; clearTimeout(guard);
         if(id === sayId){ speaking = false; stopTimer(); resumeRec(); idle(); }
         done();
       }
       try {
         if(speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
         var u = new SpeechSynthesisUtterance(text);
-        u.lang = 'en-GB'; u.rate = 1.04;
-        u.onend = end; u.onerror = end;
-        speaking = true;
-        pauseRec();
-        startTimer('Speaking response…');
-        updateStopControls();
-        setState('speaking', 'Speaking…');
+        u.lang = 'en-GB'; u.rate = 1.04; u.onend = end; u.onerror = end;
+        speaking = true; pauseRec(); startTimer('Speaking response…'); updateStopControls(); setState('speaking', 'Speaking…');
         guard = setTimeout(end, Math.max(4000, text.length * 95));
         speechSynthesis.speak(u);
       } catch(_){ end(); }
@@ -1325,15 +1312,8 @@ button:active:not(:disabled) {
   }
 
   /* Listening */
-  function pauseRec(){
-    if(useServer){ epoch++; return; }
-    if(rec && listening){ try { rec.stop(); } catch(_){} }
-  }
-  function resumeRec(){
-    if(!listening) return;
-    if(useServer){ serverLoop(); return; }
-    if(rec){ try { rec.start(); } catch(_){} }
-  }
+  function pauseRec(){ if(useServer){ epoch++; return; } if(rec && listening){ try { rec.stop(); } catch(_){} } }
+  function resumeRec(){ if(!listening) return; if(useServer){ serverLoop(); return; } if(rec){ try { rec.start(); } catch(_){} } }
   function serverLoop(){
     if(!listening || !useServer || srvActive || speaking || busy) return;
     srvActive = true; var my = epoch;
@@ -1341,31 +1321,22 @@ button:active:not(:disabled) {
       .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
       .then(function(x){
         srvActive = false;
-        if(!x.ok){
-          listening = false; awaiting = false; idle();
-          statusEl.textContent = x.d.error || 'The computer’s microphone failed.';
-          return;
-        }
+        if(!x.ok){ listening = false; awaiting = false; idle(); statusEl.textContent = x.d.error || 'The computer’s microphone failed.'; return; }
         if(listening && my === epoch && x.d.text){ showHeard(x.d.text, true); heard(x.d.text); }
       })
-      .catch(function(){
-        srvActive = false; listening = false; awaiting = false; idle();
-        statusEl.textContent = 'Can’t reach Jarvis server. Check that server.py is running.';
-      })
+      .catch(function(){ srvActive = false; listening = false; awaiting = false; idle(); statusEl.textContent = 'Can’t reach Jarvis server. Check that server.py is running.'; })
       .then(function(){ if(listening) setTimeout(serverLoop, 60); });
   }
   function updateMicLabel(){ $('micMode').textContent = useServer ? 'Mic: computer' : 'Mic: browser'; }
   function switchToServer(){
     useServer = true; try { localStorage.setItem('jarvis-mic', 'server'); } catch(_){}
-    updateMicLabel();
-    try { rec && rec.stop(); } catch(_){}
-    idle();
-    statusEl.textContent = 'Using this computer’s microphone.';
-    serverLoop();
+    updateMicLabel(); try { rec && rec.stop(); } catch(_){}
+    stopMicVisualizer(); idle(); statusEl.textContent = 'Using this computer’s microphone.'; serverLoop();
   }
   function startListening(){
     if(useServer){ listening = true; idle(); serverLoop(); return; }
     if(!SR){ setState('idle', 'Voice input needs Chrome or Edge. Typing still works.'); showToast('Voice needs Chrome/Edge'); return; }
+    startMicVisualizer();
     rec = new SR(); rec.lang = 'en-US'; rec.continuous = true; rec.interimResults = true;
     rec.onresult = function(e){
       var interim = '';
@@ -1384,23 +1355,19 @@ button:active:not(:disabled) {
       if(e.error === 'not-allowed' || e.error === 'service-not-allowed') msg = 'Microphone blocked. Allow it in the address bar.';
       else if(e.error === 'network'){ switchToServer(); return; }
       else if(e.error === 'audio-capture') msg = 'No microphone detected.';
-      if(msg){ listening = false; awaiting = false; idle(); statusEl.textContent = msg; }
+      if(msg){ listening = false; awaiting = false; stopMicVisualizer(); idle(); statusEl.textContent = msg; }
     };
-    listening = true;
-    try { rec.start(); } catch(_){}
+    listening = true; try { rec.start(); } catch(_){}
     idle();
   }
   function stopListening(){
     epoch++; listening = false; awaiting = false; clearTimeout(awaitTimer);
     try { rec && rec.stop(); } catch(_){}
-    showHeard('');
-    idle();
+    stopMicVisualizer(); showHeard(''); idle();
   }
   function toggleListening(){ sfxTap(); listening ? stopListening() : startListening(); }
   function armCommand(){
-    awaiting = true; clearTimeout(awaitTimer);
-    sfxWake();
-    energyBoost = 1.25;
+    awaiting = true; clearTimeout(awaitTimer); sfxWake(); energyBoost = 1.25;
     setState('awake', 'I’m listening, Sir…');
     awaitTimer = setTimeout(function(){ awaiting = false; idle(); }, 12000);
   }
@@ -1415,25 +1382,14 @@ button:active:not(:disabled) {
     var m = text.match(WAKE); if(!m) return;
     var rest = text.slice(m.index + m[0].length).replace(/^[\s,.!?:;-]+/, '');
     if(rest) return send(rest);
-    armCommand();
-    say('Yes sir.');
+    armCommand(); say('Yes sir.');
   }
 
-  /* --- Touch-Sensitive Core Gestures (Tap, Long-Press Hold-to-Talk, Double-Tap Pulse) --- */
-  var holdTimer = null, holdAnim = null, holdTriggered = false, lastCoreTap = 0;
-  var HOLD_MS = 380;
-
-  function resetHoldRing(){
-    cancelAnimationFrame(holdAnim);
-    clearTimeout(holdTimer);
-    orb.classList.remove('pressing');
-    holdArc.style.strokeDashoffset = '440';
-  }
-
+  /* Core Gestures (Tap, Long-Press Hold-to-Talk, Double-Tap Pulse) */
+  var holdTimer = null, holdAnim = null, holdTriggered = false, lastCoreTap = 0, HOLD_MS = 380;
+  function resetHoldRing(){ cancelAnimationFrame(holdAnim); clearTimeout(holdTimer); orb.classList.remove('pressing'); holdArc.style.strokeDashoffset = '440'; }
   orb.addEventListener('pointerdown', function(e){
-    e.preventDefault();
-    holdTriggered = false;
-    orb.classList.add('pressing');
+    e.preventDefault(); holdTriggered = false; orb.classList.add('pressing');
     var start = performance.now();
     function tickHold(){
       var p = Math.min(1, (performance.now() - start) / HOLD_MS);
@@ -1442,55 +1398,33 @@ button:active:not(:disabled) {
     }
     holdAnim = requestAnimationFrame(tickHold);
     holdTimer = setTimeout(function(){
-      holdTriggered = true;
-      energyBoost = 1.4;
+      holdTriggered = true; energyBoost = 1.4;
       var rect = orb.getBoundingClientRect();
       pushShockwave(rect.left + rect.width / 2, rect.top + rect.height / 2, '52, 211, 153');
-      talkNow();
-      showToast('Hold-to-talk armed');
+      talkNow(); showToast('Hold-to-talk armed');
     }, HOLD_MS);
   });
-
   orb.addEventListener('pointerup', function(){
-    resetHoldRing();
-    if(holdTriggered) return;
+    resetHoldRing(); if(holdTriggered) return;
     var now = Date.now();
     if(now - lastCoreTap < 310){
-      lastCoreTap = 0;
-      energyBoost = 1.5;
-      sfxWake();
+      lastCoreTap = 0; energyBoost = 1.5; sfxWake();
       var rect = orb.getBoundingClientRect();
       pushShockwave(rect.left + rect.width / 2, rect.top + rect.height / 2, '56, 189, 248');
-      showToast('Core pulse · Systems active');
-      ping();
-      return;
+      showToast('Core pulse · Systems active'); ping(); return;
     }
-    lastCoreTap = now;
-    toggleListening();
-    orb.blur();
+    lastCoreTap = now; toggleListening(); orb.blur();
   });
   orb.addEventListener('pointercancel', resetHoldRing);
   orb.addEventListener('pointerleave', resetHoldRing);
 
-  /* Hold-to-talk on mic button too */
   var micHoldTimer = null, micHeld = false;
-  micBtn.addEventListener('pointerdown', function(){
-    micHeld = false;
-    micHoldTimer = setTimeout(function(){
-      micHeld = true;
-      talkNow();
-      showToast('Instant voice armed');
-    }, 380);
-  });
-  micBtn.addEventListener('pointerup', function(){
-    clearTimeout(micHoldTimer);
-    if(!micHeld) toggleListening();
-    micBtn.blur();
-  });
+  micBtn.addEventListener('pointerdown', function(){ micHeld = false; micHoldTimer = setTimeout(function(){ micHeld = true; talkNow(); showToast('Instant voice armed'); }, 380); });
+  micBtn.addEventListener('pointerup', function(){ clearTimeout(micHoldTimer); if(!micHeld) toggleListening(); micBtn.blur(); });
   micBtn.addEventListener('pointercancel', function(){ clearTimeout(micHoldTimer); });
   micBtn.addEventListener('pointerleave', function(){ clearTimeout(micHoldTimer); });
 
-  /* Talking to server.py */
+  /* --- Live SSE Streaming Command Execution (/api/stream) --- */
   function saveHistory(text){
     cmdHistory = [text].concat(cmdHistory.filter(function(x){ return x !== text; })).slice(0, 30);
     histIdx = -1;
@@ -1500,66 +1434,97 @@ button:active:not(:disabled) {
   function send(text){
     if(busy) return Promise.resolve();
     busy = true; offline = false;
-    saveHistory(text);
-    sfxSend();
-    energyBoost = 1.1;
+    saveHistory(text); sfxSend(); energyBoost = 1.1;
     addMsg('you', text);
     setState('thinking', 'Executing: ' + text);
     startTimer('Running: ' + text);
     updateStopControls();
-    currentTyping = addTyping();
+    var streamBubble = createStreamingMsg();
     currentAbort = new AbortController();
-    var reqT0 = performance.now();
+    var reqT0 = performance.now(), firstTok = false, acc = '', finalMeta = { shutdown: false, cancelled: false };
 
-    return fetch('/api/command', {
+    return fetch('/api/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: text }),
       signal: currentAbort.signal
     })
-      .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error || 'Server error'); return d; }); })
-      .then(function(d){
-        if(currentTyping){ currentTyping.remove(); currentTyping = null; }
-        currentAbort = null;
-        stopTimer();
+      .then(function(resp){
+        if(!resp.ok || !resp.body) throw new Error('Stream unavailable');
         setConn(true);
-        latTxt.textContent = Math.round(performance.now() - reqT0) + 'ms';
-        if(d.cancelled){
+        var reader = resp.body.getReader();
+        var decoder = new TextDecoder();
+        var buf = '';
+        function readLoop(){
+          return reader.read().then(function(res){
+            if(res.done) return;
+            buf += decoder.decode(res.value, { stream: true });
+            var lines = buf.split('\n');
+            buf = lines.pop() || '';
+            for(var i = 0; i < lines.length; i++){
+              var line = lines[i].trim();
+              if(!line.startsWith('data:')) continue;
+              try {
+                var evt = JSON.parse(line.slice(5).trim());
+                if(evt.token){
+                  if(!firstTok){ firstTok = true; latTxt.textContent = Math.round(performance.now() - reqT0) + 'ms'; }
+                  acc += evt.token;
+                  streamBubble.setText(acc);
+                }
+                if(evt.error){ throw new Error(evt.error); }
+                if(evt.done){
+                  if(evt.full && !acc) acc = evt.full;
+                  finalMeta.shutdown = !!evt.shutdown;
+                  finalMeta.cancelled = !!evt.cancelled;
+                }
+              } catch(_){}
+            }
+            return readLoop();
+          });
+        }
+        return readLoop();
+      })
+      .then(function(){
+        currentAbort = null; stopTimer();
+        if(finalMeta.cancelled){
+          streamBubble.el.remove();
           addMsg('cancelled', 'Task cancelled, Sir.');
           return;
         }
-        d.replies.forEach(function(line){ addMsg('jarvis', line); });
-        return say(d.replies.join(' ')).then(function(){
-          if(d.shutdown){ offline = true; stopListening(); }
+        var finalReply = (acc || 'Done, Sir.').trim();
+        streamBubble.finish(finalReply);
+        if(drawerOpen) fetchSystem();
+        return say(finalReply).then(function(){
+          if(finalMeta.shutdown){ offline = true; stopListening(); }
         });
       })
       .catch(function(err){
-        if(currentTyping){ currentTyping.remove(); currentTyping = null; }
-        currentAbort = null;
-        stopTimer();
-        if(err && err.name === 'AbortError') return;
-        var down = err instanceof TypeError;
+        currentAbort = null; stopTimer();
+        if(err && err.name === 'AbortError'){ streamBubble.el.remove(); return; }
+        streamBubble.el.remove();
+        var down = err instanceof TypeError || (err && err.message === 'Stream unavailable');
         latTxt.textContent = down ? 'OFFLINE' : 'ERR';
-        addMsg('error', down ? 'Can’t reach Jarvis server. Check that server.py is running.' : ('Error: ' + err.message));
+        addMsg('error', down ? 'Can’t reach Jarvis server. Run start.bat or python server.py.' : ('Error: ' + err.message));
         setConn(!down);
       })
       .then(function(){
-        busy = false;
-        stopTimer();
-        idle();
-        resumeRec();
+        busy = false; stopTimer(); idle(); resumeRec();
       });
   }
 
   function setConn(ok){
+    serverOnline = ok;
     $('conn').className = ok ? 'pill online' : 'pill';
     $('connTxt').textContent = ok ? 'Online' : 'Offline';
   }
   function ping(){
-    fetch('/api/health').then(function(r){ return r.json().then(function(d){ setConn(r.ok); if(d && d.provider) updateAiBtn(d.provider, d.ollama_model, d.ollama_ready); }); }).catch(function(){ setConn(false); });
+    fetch('/api/health').then(function(r){ return r.json().then(function(d){
+      setConn(r.ok);
+      if(d && d.provider) updateAiBtn(d.provider, d.ollama_model, d.ollama_ready);
+      if(d && d.persona) updatePersonaUI(d.persona);
+    }); }).catch(function(){ setConn(false); });
   }
-  var aiModes = ['auto', 'ollama', 'gemini'];
-  var aiModeIdx = 0;
+  var aiModes = ['auto', 'ollama', 'gemini'], aiModeIdx = 0;
   function updateAiBtn(p, model, ready){
     var label = p === 'ollama' ? ('AI: Ollama (' + (model || 'llama3.2:3b') + ')')
       : p === 'gemini' ? 'AI: Gemini'
@@ -1574,14 +1539,8 @@ button:active:not(:disabled) {
     var next = aiModes[(aiModeIdx + 1) % aiModes.length];
     updateAiBtn(next, 'llama3.2:3b', false);
     showToast('AI mode → ' + next.toUpperCase());
-    fetch('/api/provider', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: next })
-    })
-      .then(function(r){ return r.json(); })
-      .then(function(d){ updateAiBtn(d.provider, d.ollama_model, d.ollama_ready); })
-      .catch(function(){});
+    fetch('/api/provider', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: next }) })
+      .then(function(r){ return r.json(); }).then(function(d){ updateAiBtn(d.provider, d.ollama_model, d.ollama_ready); }).catch(function(){});
     this.blur();
   });
 
@@ -1591,38 +1550,29 @@ button:active:not(:disabled) {
   abortBanner.addEventListener('click', cancelActiveTask);
 
   document.addEventListener('keydown', function(e){
-    if(e.key === 'Escape' && (busy || speaking)){
-      e.preventDefault();
-      cancelActiveTask();
-      return;
+    if(e.key === 'Escape'){
+      if(busy || speaking){ e.preventDefault(); cancelActiveTask(); return; }
+      if(drawerOpen){ setDrawer(false); return; }
     }
     var tag = document.activeElement && document.activeElement.tagName;
-    if(e.code === 'Space' && !e.repeat && tag !== 'INPUT' && tag !== 'BUTTON'){
-      e.preventDefault();
-      talkNow();
-    }
+    if(e.code === 'Space' && !e.repeat && tag !== 'INPUT' && tag !== 'BUTTON'){ e.preventDefault(); talkNow(); }
   });
 
   $('form').addEventListener('submit', function(e){
     e.preventDefault();
     var t = input.value.trim();
-    input.value = '';
-    go.disabled = true;
+    input.value = ''; go.disabled = true;
     if(t) send(t);
   });
   input.addEventListener('input', function(){ go.disabled = !input.value.trim(); });
   input.addEventListener('keydown', function(e){
     if(e.key === 'Escape' && !busy && !speaking){ input.value = ''; go.disabled = true; return; }
     if(e.key === 'ArrowUp' && cmdHistory.length){
-      e.preventDefault();
-      histIdx = Math.min(cmdHistory.length - 1, histIdx + 1);
-      input.value = cmdHistory[histIdx];
-      go.disabled = !input.value.trim();
+      e.preventDefault(); histIdx = Math.min(cmdHistory.length - 1, histIdx + 1);
+      input.value = cmdHistory[histIdx]; go.disabled = !input.value.trim();
     } else if(e.key === 'ArrowDown' && histIdx >= 0){
-      e.preventDefault();
-      histIdx--;
-      input.value = histIdx >= 0 ? cmdHistory[histIdx] : '';
-      go.disabled = !input.value.trim();
+      e.preventDefault(); histIdx--;
+      input.value = histIdx >= 0 ? cmdHistory[histIdx] : ''; go.disabled = !input.value.trim();
     }
   });
 
@@ -1630,39 +1580,25 @@ button:active:not(:disabled) {
     if(!b) return;
     if(b.hasAttribute('data-send')){ sfxTap(); send(b.dataset.send); }
     else if(b.hasAttribute('data-fill')){
-      sfxTap();
-      input.value = b.dataset.fill;
-      go.disabled = !input.value.trim();
-      input.focus();
+      sfxTap(); input.value = b.dataset.fill; go.disabled = !input.value.trim(); input.focus();
       if(b.dataset.fill === 'play  in spotify'){ input.setSelectionRange(5, 5); }
-    } else if(b.hasAttribute('data-copy')){
-      sfxTap();
-      copyText(b.dataset.copy);
-    } else if(b.hasAttribute('data-speak')){
-      sfxTap();
-      say(b.dataset.speak);
-    }
+    } else if(b.hasAttribute('data-copy')){ sfxTap(); copyText(b.dataset.copy); }
+    else if(b.hasAttribute('data-speak')){ sfxTap(); say(b.dataset.speak); }
   }
-
   log.addEventListener('click', function(e){ handleActionButton(e.target.closest('button')); });
   $('quickStrip').addEventListener('click', function(e){ handleActionButton(e.target.closest('button')); });
 
   $('mute').addEventListener('click', function(){
-    muted = !muted;
-    this.textContent = muted ? 'Sound off' : 'Sound on';
+    muted = !muted; this.textContent = muted ? 'Sound off' : 'Sound on';
     showToast(muted ? 'Audio muted' : 'Audio enabled');
     if(!muted) sfxTap();
     if(muted && 'speechSynthesis' in window) speechSynthesis.cancel();
   });
   $('micMode').addEventListener('click', function(){
-    sfxTap();
-    var was = listening; if(was) stopListening();
-    useServer = !useServer;
-    try { localStorage.setItem('jarvis-mic', useServer ? 'server' : 'browser'); } catch(_){}
-    updateMicLabel();
-    showToast('Mic switched to ' + (useServer ? 'computer' : 'browser'));
-    if(was) startListening();
-    this.blur();
+    sfxTap(); var was = listening; if(was) stopListening();
+    useServer = !useServer; try { localStorage.setItem('jarvis-mic', useServer ? 'server' : 'browser'); } catch(_){}
+    updateMicLabel(); showToast('Mic switched to ' + (useServer ? 'computer' : 'browser'));
+    if(was) startListening(); this.blur();
   });
   $('clear').addEventListener('click', function(){ sfxTap(); showEmpty(); showToast('Console cleared'); });
 

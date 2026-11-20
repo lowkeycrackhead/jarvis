@@ -1,25 +1,23 @@
 # pyright: reportMissingImports=false, reportMissingModuleSource=false, reportOptionalMemberAccess=false, reportAttributeAccessIssue=false, reportGeneralTypeIssues=false
 """
-server.py - Aesthetic web backend for Jarvis with live task cancellation and Ollama/Gemini switching.
+server.py - Interactive web backend for J.A.R.V.I.S. with SSE live token streaming,
+live task cancellation, Ollama/Gemini switching, Personas, PC telemetry & controls,
+Screen Vision, Clipboard actions, and persistent Notes & Timers.
 
 Run:
     python server.py
 Your browser opens at http://127.0.0.1:5000
-
-Endpoints:
-- /api/health    check server status, active task, and Ollama/Gemini status
-- /api/provider  switch AI engine between auto, ollama, and gemini
-- /api/command   execute a Jarvis command (cancellable via /api/stop)
-- /api/stop      immediately cancel any running task or AI response
-- /api/listen    record one phrase from this computer's microphone
 """
+import json
 import os
+import re
 import threading
 import webbrowser
 
 import speech_recognition as sr
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 
+import jarvis_extras as extras
 import main  # your existing assistant code
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -43,6 +41,50 @@ def capture_speak(text):
 main.speak = capture_speak  # processcommand() looks this up at call time
 
 
+def _is_direct_action_command(text: str) -> bool:
+    """Return True if the command should run through processcommand() rather than raw AI streaming."""
+    raw = re.sub(
+        r"^(?:hey\s+|ok\s+|hi\s+|hello\s+)?(?:jarvis|jarvas|jervis|jarves|charvis|jarvice)\b[\s,.!?:;-]*",
+        "",
+        str(text).strip(),
+        flags=re.IGNORECASE,
+    ).strip() or str(text).strip()
+    low = raw.lower().strip()
+    exact = {
+        "stop", "exit", "quit", "shutdown", "shut down",
+        "thank you", "thanks", "thank you jarvis", "thanks jarvis",
+        "use ollama", "switch to ollama", "ollama mode",
+        "use gemini", "switch to gemini", "gemini mode",
+        "use auto", "auto ai", "auto mode",
+        "coder mode", "coding mode", "switch to coder", "be a coder",
+        "tutor mode", "study mode", "switch to tutor", "study tutor",
+        "butler mode", "jarvis mode", "normal mode", "default mode",
+        "clear memory", "forget conversation", "reset memory",
+        "read my notes", "show my notes", "list notes", "my notes",
+        "lock screen", "lock my pc", "lock computer", "lock laptop",
+        "mute", "mute volume", "unmute", "unmute volume",
+    }
+    if low in exact:
+        return True
+    if main.is_datetime_query(low):
+        return True
+    if main._extract_spotify_song(raw) is not None:
+        return True
+    prefixes = ("open ", "launch ", "start ", "close ", "play ", "note down ", "take a note ", "add note ", "add a note ", "remember that ")
+    if low.startswith(prefixes) or low == "play":
+        return True
+    keywords = (
+        "stop the song", "stop music", "stop the music", "pause the song", "pause music",
+        "stop spotify", "pause spotify", "on my screen", "look at my screen", "read my screen",
+        "explain my screen", "see my screen", "analyze my screen",
+        "clipboard", "what did i copy", "what i copied",
+        "timer", "screenshot", "capture screen",
+        "battery", "system status", "pc status", "cpu usage", "ram usage",
+        "volume", "brightness",
+    )
+    return any(k in low for k in keywords)
+
+
 @app.get("/")
 def index():
     return send_from_directory(BASE, "index.html")
@@ -58,6 +100,7 @@ def health():
         provider=ai["provider"],
         ollama_model=ai["ollama_model"],
         ollama_ready=ai["ollama_ready"],
+        persona=ai.get("persona", "butler"),
     )
 
 
@@ -66,14 +109,81 @@ def set_provider():
     mode = (request.get_json(silent=True) or {}).get("provider", "auto")
     updated = main.set_ai_provider(mode)
     ai = main.get_ai_status()
-    return jsonify(provider=updated, ollama_model=ai["ollama_model"], ollama_ready=ai["ollama_ready"])
+    return jsonify(
+        provider=updated,
+        ollama_model=ai["ollama_model"],
+        ollama_ready=ai["ollama_ready"],
+        persona=ai.get("persona", "butler"),
+    )
+
+
+@app.post("/api/persona")
+def set_persona():
+    mode = (request.get_json(silent=True) or {}).get("persona", "butler")
+    updated = main.set_persona(mode)
+    return jsonify(persona=updated, name=extras.PERSONAS[updated]["name"])
+
+
+@app.post("/api/memory/clear")
+def clear_memory():
+    main.clear_memory()
+    return jsonify(cleared=True)
 
 
 @app.post("/api/stop")
 def stop_task():
-    """Cancel any currently running command, AI call, or Spotify/automation wait."""
+    """Cancel any currently running command, AI stream, or automation wait."""
     main.cancel_current_task()
     return jsonify(stopped=True, message="Task cancelled, Sir.")
+
+
+@app.post("/api/stream")
+def stream_command():
+    """Stream AI replies word-by-word via Server-Sent Events (SSE), or run direct actions."""
+    text = (request.get_json(silent=True) or {}).get("text", "").strip()
+    if not text:
+        return jsonify(error="Empty command"), 400
+
+    def generate():
+        with lock:
+            replies.clear()
+            main.clear_cancel()
+            active_task["running"] = True
+            active_task["label"] = text
+            shutdown = False
+            full_parts: list[str] = []
+            try:
+                low = text.lower()
+                if low in {"thank you", "thanks", "thank you jarvis", "thanks jarvis"}:
+                    msg = "You are welcome, Sir."
+                    full_parts.append(msg)
+                    yield f"data: {json.dumps({'token': msg})}\n\n"
+                elif _is_direct_action_command(text):
+                    shutdown = bool(main.processcommand(text))
+                    if not main.is_cancelled():
+                        out = list(replies) or ["Done, Sir."]
+                        joined = "\n".join(out)
+                        full_parts.append(joined)
+                        yield f"data: {json.dumps({'token': joined})}\n\n"
+                else:
+                    for token in main.stream_ai_reply(text):
+                        if main.is_cancelled():
+                            break
+                        full_parts.append(token)
+                        yield f"data: {json.dumps({'token': token})}\n\n"
+            except Exception as err:
+                yield f"data: {json.dumps({'error': str(err)})}\n\n"
+            finally:
+                cancelled = bool(main.is_cancelled())
+                active_task["running"] = False
+                active_task["label"] = ""
+            yield f"data: {json.dumps({'done': True, 'full': ''.join(full_parts).strip(), 'shutdown': shutdown, 'cancelled': cancelled})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/command")
@@ -131,6 +241,97 @@ def listen():
         return jsonify(error=f"Microphone error: {error}"), 500
     finally:
         mic_lock.release()
+
+
+# --- Live PC Telemetry & Controls ---
+@app.get("/api/system")
+def system_stats():
+    st = extras.get_system_stats()
+    st["notes"] = extras.list_notes()
+    st["timers"] = extras.list_timers()
+    return jsonify(st)
+
+
+@app.post("/api/system/volume")
+def system_volume():
+    data = request.get_json(silent=True) or {}
+    if "level" in data:
+        ok = extras.set_volume(int(data["level"]))
+        return jsonify(ok=ok, level=int(data["level"]))
+    action = str(data.get("action", "")).lower()
+    if action in {"up", "down", "mute"}:
+        extras.adjust_volume(action, 4)
+        return jsonify(ok=True, action=action)
+    return jsonify(error="Provide level (0-100) or action (up/down/mute)"), 400
+
+
+@app.post("/api/system/brightness")
+def system_brightness():
+    data = request.get_json(silent=True) or {}
+    if "level" not in data:
+        return jsonify(error="Provide level (0-100)"), 400
+    lvl = max(0, min(100, int(data["level"])))
+    ok = extras.set_brightness(lvl)
+    return jsonify(ok=ok, level=lvl)
+
+
+@app.post("/api/system/action")
+def system_action():
+    data = request.get_json(silent=True) or {}
+    act = str(data.get("action", "")).lower()
+    if act == "screenshot":
+        path, _ = extras.capture_screenshot(save=True)
+        return jsonify(ok=bool(path), message="Screenshot saved, Sir." if path else "Install Pillow for screenshots.")
+    if act == "lock":
+        ok = extras.lock_screen()
+        return jsonify(ok=ok, message="Locking screen, Sir.")
+    if act == "launch":
+        app_name = str(data.get("app", ""))
+        opened = extras.launch_app(app_name)
+        return jsonify(ok=bool(opened), message=f"Opening {opened}, Sir." if opened else f"Unknown app: {app_name}")
+    return jsonify(error="Unsupported action"), 400
+
+
+# --- Persistent Quick Notes ---
+@app.get("/api/notes")
+def get_notes():
+    return jsonify(notes=extras.list_notes())
+
+
+@app.post("/api/notes")
+def create_note():
+    text = (request.get_json(silent=True) or {}).get("text", "").strip()
+    if not text:
+        return jsonify(error="Empty note"), 400
+    note = extras.add_note(text)
+    return jsonify(note=note, notes=extras.list_notes())
+
+
+@app.delete("/api/notes/<note_id>")
+def remove_note(note_id: str):
+    extras.delete_note(note_id)
+    return jsonify(notes=extras.list_notes())
+
+
+# --- Live Countdown Timers ---
+@app.get("/api/timers")
+def get_timers():
+    return jsonify(timers=extras.list_timers())
+
+
+@app.post("/api/timers")
+def create_timer():
+    data = request.get_json(silent=True) or {}
+    seconds = int(data.get("seconds", 300))
+    label = str(data.get("label", "Focus Timer")).strip() or "Focus Timer"
+    timer = extras.add_timer(label, seconds)
+    return jsonify(timer=timer, timers=extras.list_timers())
+
+
+@app.delete("/api/timers/<timer_id>")
+def remove_timer(timer_id: str):
+    extras.cancel_timer(timer_id)
+    return jsonify(timers=extras.list_timers())
 
 
 if __name__ == "__main__":

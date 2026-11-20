@@ -25,6 +25,8 @@ except ModuleNotFoundError:
     except Exception:
         pyaudio = None  # type: ignore[assignment]
 
+import jarvis_extras as extras
+
 import speech_recognition as sr
 from dotenv import load_dotenv
 from google import genai
@@ -154,12 +156,27 @@ def set_ai_provider(mode: str) -> str:
 
 
 def get_ai_status() -> dict[str, Any]:
-    """Return current AI engine configuration and detected Ollama model."""
+    """Return current AI engine configuration, detected Ollama model, and persona."""
     return {
         "provider": ai_provider,
         "ollama_model": _resolved_ollama_model or DEFAULT_OLLAMA_MODEL,
         "ollama_ready": bool(_probe_ollama_model(force=False)),
+        "persona": extras.get_persona(),
     }
+
+
+def set_persona(mode: str) -> str:
+    """Switch Jarvis persona between 'butler', 'coder', and 'tutor'."""
+    global _active_chat
+    _active_chat = None
+    return extras.set_persona(mode)
+
+
+def clear_memory() -> None:
+    """Clear multi-turn conversation history."""
+    global _active_chat
+    _conversation_history.clear()
+    _active_chat = None
 
 
 def cancel_current_task() -> None:
@@ -251,7 +268,7 @@ def _get_fast_config() -> Any:
         return types.GenerateContentConfig(**kwargs)
     except Exception:
         return types.GenerateContentConfig(
-            system_instruction=SYSTEM_INSTRUCTION,
+            system_instruction=extras.get_system_instruction(),
             max_output_tokens=180,
         )
 
@@ -301,8 +318,8 @@ def _ask_ollama(prompt: str) -> str | None:
     if not model:
         return None
     try:
-        messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
-        for u_msg, a_msg in _conversation_history[-4:]:
+        messages = [{"role": "system", "content": extras.get_system_instruction()}]
+        for u_msg, a_msg in _conversation_history[-8:]:
             messages.append({"role": "user", "content": u_msg})
             messages.append({"role": "assistant", "content": a_msg})
         messages.append({"role": "user", "content": prompt})
@@ -332,6 +349,104 @@ def _ask_ollama(prompt: str) -> str | None:
     except Exception as err:
         print(f"Ollama warning ({model}): {err}")
     return None
+
+
+def _stream_ollama(prompt: str):
+    """Stream tokens live from local Ollama (/api/chat with stream=True)."""
+    if is_cancelled():
+        return
+    model = _probe_ollama_model(force=False)
+    if not model:
+        return
+    messages = [{"role": "system", "content": extras.get_system_instruction()}]
+    for u_msg, a_msg in _conversation_history[-8:]:
+        messages.append({"role": "user", "content": u_msg})
+        messages.append({"role": "assistant", "content": a_msg})
+    messages.append({"role": "user", "content": prompt})
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "keep_alive": "10m",
+        "options": {"num_predict": 180, "temperature": 0.4},
+    }
+    req = urllib.request.Request(
+        f"{OLLAMA_BASE_URL}/api/chat",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=22) as resp:
+            for raw_line in resp:
+                if is_cancelled():
+                    return
+                line = raw_line.decode("utf-8", errors="ignore").strip()
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except Exception:
+                    continue
+                token = str((chunk.get("message") or {}).get("content") or "")
+                if token:
+                    yield token
+                if chunk.get("done"):
+                    break
+    except Exception as err:
+        print(f"Ollama stream warning ({model}): {err}")
+
+
+def stream_ai_reply(command: str):
+    """Yield live reply chunks (word/token streaming) for the web HUD SSE endpoint."""
+    prompt = str(command).strip()
+    if not prompt:
+        yield "Yes, Sir? How may I help you?"
+        return
+    if is_cancelled():
+        return
+
+    with _ai_lock:
+        weather_ans = _weather_fallback(prompt)
+        if weather_ans:
+            _conversation_history.append((prompt, weather_ans))
+            yield weather_ans
+            return
+
+        if ai_provider in {"ollama", "auto"}:
+            collected: list[str] = []
+            for tok in _stream_ollama(prompt):
+                if is_cancelled():
+                    return
+                collected.append(tok)
+                yield tok
+            if collected:
+                _conversation_history.append((prompt, "".join(collected).strip()))
+                return
+            if ai_provider == "ollama":
+                yield (
+                    f"Ollama is not running or '{DEFAULT_OLLAMA_MODEL}' is not pulled yet, Sir. "
+                    f"Run 'ollama pull {DEFAULT_OLLAMA_MODEL}' and start Ollama."
+                )
+                return
+
+        if ai_provider in {"gemini", "auto"} and not is_cancelled():
+            gemini_ans = _ask_gemini(prompt)
+            if gemini_ans:
+                _conversation_history.append((prompt, gemini_ans))
+                for part in re.findall(r"\S+\s*", gemini_ans):
+                    if is_cancelled():
+                        return
+                    yield part
+                return
+
+        if is_cancelled():
+            return
+        backup = _fallback_ai_answer(prompt)
+        if backup:
+            _conversation_history.append((prompt, backup))
+            yield backup
 
 
 def speak(text: str) -> None:
@@ -390,8 +505,8 @@ def _weather_fallback(prompt: str) -> str | None:
 
 def _pollinations_post(prompt: str) -> str | None:
     try:
-        messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
-        for u_msg, a_msg in _conversation_history[-4:]:
+        messages = [{"role": "system", "content": extras.get_system_instruction()}]
+        for u_msg, a_msg in _conversation_history[-8:]:
             messages.append({"role": "user", "content": u_msg})
             messages.append({"role": "assistant", "content": a_msg})
         messages.append({"role": "user", "content": prompt})
@@ -902,6 +1017,139 @@ def processcommand(c: str) -> bool:
     if is_datetime_query(command):
         speak(current_datetime_response(command))
         return False
+
+    # Persona & memory voice commands
+    if command in {"coder mode", "coding mode", "switch to coder", "be a coder"}:
+        set_persona("coder")
+        speak("Switched to Coding Buddy mode, Sir.")
+        return False
+    if command in {"tutor mode", "study mode", "switch to tutor", "study tutor"}:
+        set_persona("tutor")
+        speak("Switched to Study Tutor mode, Sir.")
+        return False
+    if command in {"butler mode", "jarvis mode", "normal mode", "default mode"}:
+        set_persona("butler")
+        speak("Back to standard Jarvis Butler mode, Sir.")
+        return False
+    if command in {"clear memory", "forget conversation", "reset memory"}:
+        clear_memory()
+        speak("Conversation memory cleared, Sir.")
+        return False
+
+    # Screen Vision ("what's on my screen", "read my screen", "explain my screen")
+    if any(p in command for p in ("on my screen", "look at my screen", "read my screen", "explain my screen", "see my screen", "analyze my screen")):
+        ans = extras.analyze_screen(
+            raw,
+            ollama_url=OLLAMA_BASE_URL,
+            gemini_key=_get_api_key(),
+            genai_module=genai,
+            types_module=types,
+        )
+        if not is_cancelled():
+            speak(ans)
+        return False
+
+    # Clipboard tools
+    if any(p in command for p in ("summarize my clipboard", "explain my clipboard", "summarize what i copied", "explain what i copied")):
+        clip = extras.get_clipboard_text()
+        if not clip:
+            speak("Your clipboard is empty, Sir.")
+        else:
+            aiprocess(f"Summarize this clipboard text clearly in 2 to 3 sentences: {clip[:3000]}")
+        return False
+    if any(p in command for p in ("read my clipboard", "what is in my clipboard", "what did i copy")):
+        clip = extras.get_clipboard_text()
+        speak(f"Your clipboard says: {clip[:320]}" if clip else "Your clipboard is empty, Sir.")
+        return False
+
+    # Timers
+    if "timer" in command and any(w in command for w in ("set", "start", "create")):
+        secs, label = extras.parse_timer_seconds(raw)
+        if secs:
+            extras.add_timer(label, secs)
+            mins = secs // 60
+            rem = secs % 60
+            dur_txt = f"{mins} minute{'s' if mins != 1 else ''}" + (f" and {rem} seconds" if rem else "") if mins else f"{rem} seconds"
+            speak(f"Timer set for {dur_txt}, Sir.")
+        else:
+            speak("Tell me how long the timer should be, Sir—for example, set a 5 minute timer.")
+        return False
+
+    # Quick Notes
+    note_match = re.match(r"^(?:note down|take a note|add a? ?note|remember that)\s+(.+)$", raw, flags=re.IGNORECASE)
+    if note_match:
+        note_txt = note_match.group(1).strip()
+        extras.add_note(note_txt)
+        speak(f"Noted: {note_txt}")
+        return False
+    if command in {"read my notes", "show my notes", "list notes", "my notes"}:
+        notes = extras.list_notes()
+        if not notes:
+            speak("You don't have any saved notes yet, Sir.")
+        else:
+            preview = "; ".join(n["text"] for n in notes[:4])
+            speak(f"You have {len(notes)} notes. Latest: {preview}")
+        return False
+
+    # PC Controls & Telemetry
+    if any(p in command for p in ("take a screenshot", "capture screen", "screenshot")):
+        path, _ = extras.capture_screenshot(save=True)
+        speak("Screenshot saved, Sir." if path else "I couldn't take a screenshot, Sir. Make sure Pillow is installed.")
+        return False
+    if command in {"lock screen", "lock my pc", "lock computer", "lock laptop"}:
+        speak("Locking your screen, Sir.")
+        extras.lock_screen()
+        return False
+    if any(p in command for p in ("battery", "system status", "pc status", "cpu usage", "ram usage")):
+        st = extras.get_system_stats()
+        parts = []
+        if st["cpu"] is not None:
+            parts.append(f"CPU is at {st['cpu']}%")
+        if st["ram_pct"] is not None:
+            parts.append(f"RAM is at {st['ram_pct']}% ({st['ram_used_gb']} of {st['ram_total_gb']} GB)")
+        if st["battery_pct"] is not None:
+            plug = "and charging" if st["battery_plugged"] else "on battery"
+            parts.append(f"battery is at {st['battery_pct']}% {plug}")
+        speak((", ".join(parts) + ", Sir.") if parts else "System telemetry isn't available yet—install psutil, Sir.")
+        return False
+
+    vol_set = re.search(r"(?:set\s+)?volume\s+(?:to\s+)?(\d{1,3})", command)
+    if vol_set:
+        lvl = max(0, min(100, int(vol_set.group(1))))
+        extras.set_volume(lvl)
+        speak(f"Volume set to {lvl} percent, Sir.")
+        return False
+    if "volume up" in command or "increase volume" in command:
+        extras.adjust_volume("up", 5)
+        speak("Turned volume up, Sir.")
+        return False
+    if "volume down" in command or "decrease volume" in command or "lower volume" in command:
+        extras.adjust_volume("down", 5)
+        speak("Turned volume down, Sir.")
+        return False
+    if command in {"mute", "mute volume", "unmute", "unmute volume"}:
+        extras.adjust_volume("mute", 1)
+        speak("Toggled mute, Sir.")
+        return False
+
+    br_set = re.search(r"(?:set\s+)?brightness\s+(?:to\s+)?(\d{1,3})", command)
+    if br_set:
+        lvl = max(0, min(100, int(br_set.group(1))))
+        extras.set_brightness(lvl)
+        speak(f"Brightness set to {lvl} percent, Sir.")
+        return False
+
+    if command.startswith("close "):
+        closed = extras.close_app(command[6:])
+        if closed:
+            speak(f"Closed {closed}, Sir.")
+            return False
+
+    if command.startswith("open ") and "spotify" not in command:
+        launched = extras.launch_app(command[5:])
+        if launched:
+            speak(f"Opening {launched}, Sir.")
+            return False
 
     spotify_song = _extract_spotify_song(raw)
     if spotify_song is not None:
