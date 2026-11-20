@@ -1,0 +1,9 @@
+-r requirements.txt
+SpeechRecognition
+PyAudio
+gTTS
+pygame
+pywhatkit
+pyautogui
+psutil
+Pillow

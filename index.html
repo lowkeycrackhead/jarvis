@@ -1466,6 +1466,7 @@ input[type="range"] {
               if(!line.startsWith('data:')) continue;
               try {
                 var evt = JSON.parse(line.slice(5).trim());
+                if(evt.open_url){ try { window.open(evt.open_url, '_blank', 'noopener'); } catch(_){} }
                 if(evt.token){
                   if(!firstTok){ firstTok = true; latTxt.textContent = Math.round(performance.now() - reqT0) + 'ms'; }
                   acc += evt.token;
@@ -1522,6 +1523,7 @@ input[type="range"] {
       setConn(r.ok);
       if(d && d.provider) updateAiBtn(d.provider, d.ollama_model, d.ollama_ready);
       if(d && d.persona) updatePersonaUI(d.persona);
+      if(d && d.cloud){ var bs = document.querySelector('.brand-sub'); if(bs) bs.textContent = d.supabase_ready ? 'CLOUD · SUPABASE' : 'CLOUD HUD'; }
     }); }).catch(function(){ setConn(false); });
   }
   var aiModes = ['auto', 'ollama', 'gemini'], aiModeIdx = 0;

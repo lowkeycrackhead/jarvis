@@ -6,5 +6,6 @@
   "python.analysis.diagnosticSeverityOverrides": {
     "reportMissingModuleSource": "none",
     "reportMissingTypeStubs": "none"
-  }
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:system"
 }

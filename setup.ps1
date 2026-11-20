@@ -52,7 +52,7 @@ Write-Ok "Using Python command: $pyCmd"
 # 2. Create/reuse virtual environment & install requirements
 $venvDir = Join-Path $PSScriptRoot ".venv"
 $venvPy = Join-Path $venvDir "Scripts\python.exe"
-$reqFile = Join-Path $PSScriptRoot "requirements.txt"
+$reqFile = if (Test-Path (Join-Path $PSScriptRoot "requirements-desktop.txt")) { Join-Path $PSScriptRoot "requirements-desktop.txt" } else { Join-Path $PSScriptRoot "requirements.txt" }
 $stampFile = Join-Path $venvDir ".deps_hash"
 
 if (-not (Test-Path $venvPy)) {

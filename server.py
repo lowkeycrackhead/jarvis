@@ -12,9 +12,13 @@ import json
 import os
 import re
 import threading
+import urllib.parse
 import webbrowser
 
-import speech_recognition as sr
+try:
+    import speech_recognition as sr
+except Exception:
+    sr = None
 from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 
 import jarvis_extras as extras
@@ -27,7 +31,7 @@ lock = threading.Lock()
 replies: list[str] = []
 active_task = {"running": False, "label": ""}
 
-recognizer = sr.Recognizer()
+recognizer = sr.Recognizer() if sr is not None else None
 mic_lock = threading.Lock()
 calibrated = False
 
@@ -101,6 +105,8 @@ def health():
         ollama_model=ai["ollama_model"],
         ollama_ready=ai["ollama_ready"],
         persona=ai.get("persona", "butler"),
+        cloud=bool(getattr(main, "IS_CLOUD", False)),
+        supabase_ready=extras.is_supabase_connected(),
     )
 
 
@@ -137,6 +143,37 @@ def stop_task():
     return jsonify(stopped=True, message="Task cancelled, Sir.")
 
 
+@app.get("/api/history")
+def get_history():
+    return jsonify(messages=extras.list_messages(24), supabase_ready=extras.is_supabase_connected())
+
+
+def _cloud_web_url(text: str) -> tuple[str | None, str | None]:
+    """For Vercel cloud mode, return (reply, url_to_open) for web-open commands."""
+    low = text.lower().strip()
+    sites = {
+        "open spotify": ("Opening Spotify Web, Sir.", "https://open.spotify.com"),
+        "open youtube": ("Opening YouTube, Sir.", "https://youtube.com"),
+        "open google": ("Opening Google, Sir.", "https://google.com"),
+        "open github": ("Opening GitHub, Sir.", "https://github.com"),
+        "open gmail": ("Opening Gmail, Sir.", "https://mail.google.com"),
+        "open whatsapp": ("Opening WhatsApp Web, Sir.", "https://web.whatsapp.com"),
+        "open instagram": ("Opening Instagram, Sir.", "https://instagram.com"),
+        "open reddit": ("Opening Reddit, Sir.", "https://reddit.com"),
+        "open twitter": ("Opening X, Sir.", "https://twitter.com"),
+    }
+    for k, pair in sites.items():
+        if k in low:
+            return pair
+    if low.startswith("play "):
+        song = text[5:].strip()
+        if "spotify" in low:
+            q = re.sub(r"\s+(?:in|on)\s+spotify$", "", song, flags=re.IGNORECASE).strip()
+            return (f"Opening {q} on Spotify Web, Sir.", f"https://open.spotify.com/search/{urllib.parse.quote(q)}")
+        return (f"Opening {song} on YouTube, Sir.", f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(song)}")
+    return None, None
+
+
 @app.post("/api/stream")
 def stream_command():
     """Stream AI replies word-by-word via Server-Sent Events (SSE), or run direct actions."""
@@ -158,6 +195,10 @@ def stream_command():
                     msg = "You are welcome, Sir."
                     full_parts.append(msg)
                     yield f"data: {json.dumps({'token': msg})}\n\n"
+                elif getattr(main, "IS_CLOUD", False) and _cloud_web_url(text)[1]:
+                    c_reply, c_url = _cloud_web_url(text)
+                    full_parts.append(c_reply or "Opening, Sir.")
+                    yield f"data: {json.dumps({'token': c_reply, 'open_url': c_url})}\n\n"
                 elif _is_direct_action_command(text):
                     shutdown = bool(main.processcommand(text))
                     if not main.is_cancelled():
@@ -177,7 +218,11 @@ def stream_command():
                 cancelled = bool(main.is_cancelled())
                 active_task["running"] = False
                 active_task["label"] = ""
-            yield f"data: {json.dumps({'done': True, 'full': ''.join(full_parts).strip(), 'shutdown': shutdown, 'cancelled': cancelled})}\n\n"
+            final_txt = "".join(full_parts).strip()
+            if final_txt and not cancelled:
+                extras.save_message("user", text, extras.get_persona())
+                extras.save_message("assistant", final_txt, extras.get_persona())
+            yield f"data: {json.dumps({'done': True, 'full': final_txt, 'shutdown': shutdown, 'cancelled': cancelled})}\n\n"
 
     return Response(
         stream_with_context(generate()),
@@ -224,6 +269,8 @@ def command():
 def listen():
     """Record one phrase from the computer's microphone and return the text."""
     global calibrated
+    if sr is None or recognizer is None:
+        return jsonify(error="Server microphone is only available when running locally on Windows. Switch to Mic: browser."), 400
     if not mic_lock.acquire(blocking=False):
         return jsonify(text="")
     try:
