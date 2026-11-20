@@ -1333,9 +1333,72 @@ input[type="range"] {
     updateMicLabel(); try { rec && rec.stop(); } catch(_){}
     stopMicVisualizer(); idle(); statusEl.textContent = 'Using this computer’s microphone.'; serverLoop();
   }
+
+  /* --- Universal MediaRecorder Voice Fallback (works in Brave, Firefox, Safari) --- */
+  var useMediaFallback = false, mediaRec = null, mediaChunks = [], mediaRecStream = null, mediaStopTimer = null;
+  function stopMediaRec(){
+    clearTimeout(mediaStopTimer);
+    if(mediaRec && mediaRec.state !== 'inactive'){
+      try { mediaRec.stop(); } catch(_){}
+    }
+  }
+  function startMediaRec(){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined'){
+      setState('idle', 'Microphone recording is not supported in this browser.');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+      mediaRecStream = stream;
+      mediaChunks = [];
+      var mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+      mediaRec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      listening = true; awaiting = true;
+      startMicVisualizer();
+      micBtn.classList.add('on');
+      setState('awake', 'Recording… tap core again to send');
+      sfxWake();
+      mediaRec.ondataavailable = function(ev){ if(ev.data && ev.data.size > 0) mediaChunks.push(ev.data); };
+      mediaRec.onstop = function(){
+        clearTimeout(mediaStopTimer);
+        listening = false; awaiting = false;
+        micBtn.classList.remove('on');
+        try { stream.getTracks().forEach(function(t){ t.stop(); }); } catch(_){}
+        stopMicVisualizer();
+        var blob = new Blob(mediaChunks, { type: mediaRec.mimeType || 'audio/webm' });
+        mediaRec = null; mediaChunks = [];
+        if(blob.size < 400){ idle(); return; }
+        setState('thinking', 'Transcribing voice…');
+        var reader = new FileReader();
+        reader.onloadend = function(){
+          fetch('/api/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audio: reader.result, mime: blob.type || 'audio/webm' })
+          })
+            .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error || 'Transcribe failed'); return d; }); })
+            .then(function(d){
+              var txt = (d.text || '').trim();
+              if(txt){ showHeard(txt, true); send(txt); }
+              else { showToast('Didn’t catch that—try again'); idle(); }
+            })
+            .catch(function(err){
+              showToast(err && err.message ? err.message : 'Voice transcription error');
+              idle();
+            });
+        };
+        reader.readAsDataURL(blob);
+      };
+      mediaRec.start();
+      mediaStopTimer = setTimeout(stopMediaRec, 9000);
+    }).catch(function(){
+      listening = false; awaiting = false; idle();
+      statusEl.textContent = 'Microphone blocked. Allow mic permission in Brave’s address bar.';
+    });
+  }
+
   function startListening(){
     if(useServer && !isCloud){ listening = true; idle(); serverLoop(); return; }
-    if(!SR){ setState('idle', 'Voice input needs Chrome or Edge. Typing still works.'); showToast('Voice needs Chrome/Edge'); return; }
+    if(useMediaFallback || !SR){ startMediaRec(); return; }
     startMicVisualizer();
     rec = new SR(); rec.lang = 'en-US'; rec.continuous = true; rec.interimResults = true;
     rec.onresult = function(e){
@@ -1353,7 +1416,7 @@ input[type="range"] {
     rec.onerror = function(e){
       var msg = null;
       if(e.error === 'not-allowed' || e.error === 'service-not-allowed') msg = 'Microphone blocked. Allow it in the address bar.';
-      else if(e.error === 'network'){ if(!isCloud){ switchToServer(); return; } msg = 'Browser speech had a network hiccup—tap the core to retry in Chrome/Edge.'; }
+      else if(e.error === 'network'){ if(!isCloud){ switchToServer(); return; } useMediaFallback = true; listening = false; awaiting = false; try { rec && rec.stop(); } catch(_){} showToast('Switched to Brave-compatible voice mode'); startMediaRec(); return; }
       else if(e.error === 'audio-capture') msg = 'No microphone detected.';
       if(msg){ listening = false; awaiting = false; stopMicVisualizer(); idle(); statusEl.textContent = msg; }
     };
@@ -1361,6 +1424,7 @@ input[type="range"] {
     idle();
   }
   function stopListening(){
+    if(mediaRec && mediaRec.state !== 'inactive'){ stopMediaRec(); return; }
     epoch++; listening = false; awaiting = false; clearTimeout(awaitTimer);
     try { rec && rec.stop(); } catch(_){}
     stopMicVisualizer(); showHeard(''); idle();

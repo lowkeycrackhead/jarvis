@@ -183,6 +183,41 @@ def _cloud_web_url(text: str) -> tuple[str | None, str | None]:
 
 
 
+
+@app.post("/api/transcribe")
+def transcribe_audio():
+    """Transcribe a browser-recorded audio clip (for Brave/Firefox/Safari where Web Speech API is unavailable)."""
+    data = request.get_json(silent=True) or {}
+    raw = str(data.get("audio") or "")
+    mime = str(data.get("mime") or "audio/webm").split(";")[0].strip() or "audio/webm"
+    if "," in raw:
+        hdr, raw = raw.split(",", 1)
+        if hdr.startswith("data:") and ";" in hdr:
+            mime = hdr[5:].split(";", 1)[0] or mime
+    if not raw:
+        return jsonify(error="No audio received."), 400
+    try:
+        audio_bytes = base64.b64decode(raw)
+    except Exception:
+        return jsonify(error="Invalid audio payload."), 400
+
+    api_key = main._get_api_key()
+    if api_key and getattr(main, "genai", None) is not None and getattr(main, "types", None) is not None:
+        for model_name in ("gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"):
+            try:
+                client = main.genai.Client(api_key=api_key)
+                part = main.types.Part.from_bytes(data=audio_bytes, mime_type=mime)
+                resp = client.models.generate_content(
+                    model=model_name,
+                    contents=[part, "Transcribe this short spoken voice command verbatim. Output ONLY the exact spoken words with no quotes or extra text. If silent or unintelligible, return empty string."],
+                )
+                txt = (getattr(resp, "text", None) or "").strip().strip('"').strip("'")
+                return jsonify(text=txt)
+            except Exception as err:
+                print(f"Transcribe warning ({model_name}): {err}")
+    return jsonify(error="Voice transcription requires GEMINI_API_KEY in Vercel Environment Variables."), 503
+
+
 @app.post("/api/vision")
 def vision_endpoint():
     """Analyze a browser-captured screen snapshot (base64 JPEG) via Gemini Vision or local Ollama."""
