@@ -162,13 +162,21 @@ def _cloud_web_url(text: str) -> tuple[str | None, str | None]:
     sites = {
         "open spotify": ("Launching Spotify app, Sir.", "spotify:"),
         "open youtube": ("Opening YouTube, Sir.", "https://youtube.com"),
+        "open yt": ("Opening YouTube, Sir.", "https://youtube.com"),
         "open google": ("Opening Google, Sir.", "https://google.com"),
         "open github": ("Opening GitHub, Sir.", "https://github.com"),
         "open gmail": ("Opening Gmail, Sir.", "https://mail.google.com"),
         "open whatsapp": ("Opening WhatsApp Web, Sir.", "https://web.whatsapp.com"),
         "open instagram": ("Opening Instagram, Sir.", "https://instagram.com"),
+        "open insta": ("Opening Instagram, Sir.", "https://instagram.com"),
+        "open facebook": ("Opening Facebook, Sir.", "https://facebook.com"),
+        "open fb": ("Opening Facebook, Sir.", "https://facebook.com"),
         "open reddit": ("Opening Reddit, Sir.", "https://reddit.com"),
         "open twitter": ("Opening X, Sir.", "https://twitter.com"),
+        "open x": ("Opening X, Sir.", "https://twitter.com"),
+        "open linkedin": ("Opening LinkedIn, Sir.", "https://linkedin.com"),
+        "open netflix": ("Opening Netflix, Sir.", "https://netflix.com"),
+        "open amazon": ("Opening Amazon, Sir.", "https://amazon.in"),
     }
     for k, pair in sites.items():
         if k in low:

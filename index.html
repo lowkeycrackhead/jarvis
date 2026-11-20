@@ -1555,9 +1555,55 @@ input[type="range"] {
       });
   }
 
+
+  /* --- Instant Cloud Web-Link Matcher (runs synchronously inside click/Enter so Brave never blocks popups) --- */
+  function matchCloudUrl(text){
+    var low = String(text || '').toLowerCase().trim();
+    var map = [
+      ['open spotify', 'spotify:'],
+      ['open youtube', 'https://youtube.com'],
+      ['open yt', 'https://youtube.com'],
+      ['open google', 'https://google.com'],
+      ['open github', 'https://github.com'],
+      ['open gmail', 'https://mail.google.com'],
+      ['open whatsapp', 'https://web.whatsapp.com'],
+      ['open instagram', 'https://instagram.com'],
+      ['open insta', 'https://instagram.com'],
+      ['open facebook', 'https://facebook.com'],
+      ['open fb', 'https://facebook.com'],
+      ['open reddit', 'https://reddit.com'],
+      ['open twitter', 'https://twitter.com'],
+      ['open x', 'https://twitter.com'],
+      ['open linkedin', 'https://linkedin.com'],
+      ['open netflix', 'https://netflix.com'],
+      ['open amazon', 'https://amazon.in']
+    ];
+    for(var i = 0; i < map.length; i++){
+      if(low.indexOf(map[i][0]) !== -1) return map[i][1];
+    }
+    if(low.startsWith('play ')){
+      var song = text.slice(5).trim();
+      if(low.indexOf('spotify') !== -1){
+        var q = song.replace(/\s+(?:in|on)\s+spotify$/i, '').trim();
+        return 'spotify:search:' + encodeURIComponent(q);
+      }
+      return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(song);
+    }
+    return null;
+  }
+  function triggerOpenUrl(url){
+    if(!url) return;
+    try {
+      if(url.startsWith('spotify:')){ window.location.href = url; }
+      else { window.open(url, '_blank', 'noopener'); }
+    } catch(_){}
+  }
+
   function send(text){
     if(busy) return Promise.resolve();
     if(isCloud && isVisionPrompt(text)) return browserScreenVision(text);
+    var preOpenedUrl = isCloud ? matchCloudUrl(text) : null;
+    if(preOpenedUrl) triggerOpenUrl(preOpenedUrl);
     busy = true; offline = false;
     saveHistory(text); sfxSend(); energyBoost = 1.1;
     addMsg('you', text);
@@ -1566,7 +1612,7 @@ input[type="range"] {
     updateStopControls();
     var streamBubble = createStreamingMsg();
     currentAbort = new AbortController();
-    var reqT0 = performance.now(), firstTok = false, acc = '', finalMeta = { shutdown: false, cancelled: false };
+    var reqT0 = performance.now(), firstTok = false, acc = '', openedUrl = preOpenedUrl, finalMeta = { shutdown: false, cancelled: false };
 
     return fetch('/api/stream', {
       method: 'POST',
@@ -1591,7 +1637,7 @@ input[type="range"] {
               if(!line.startsWith('data:')) continue;
               try {
                 var evt = JSON.parse(line.slice(5).trim());
-                if(evt.open_url){ try { if(evt.open_url.startsWith('spotify:')){ window.location.href = evt.open_url; } else { window.open(evt.open_url, '_blank', 'noopener'); } } catch(_){} }
+                if(evt.open_url){ openedUrl = evt.open_url; if(evt.open_url !== preOpenedUrl) triggerOpenUrl(evt.open_url); }
                 if(evt.token){
                   if(!firstTok){ firstTok = true; latTxt.textContent = Math.round(performance.now() - reqT0) + 'ms'; }
                   acc += evt.token;
@@ -1619,6 +1665,19 @@ input[type="range"] {
         }
         var finalReply = (acc || 'Done, Sir.').trim();
         streamBubble.finish(finalReply);
+        if(openedUrl){
+          var actsEl = streamBubble.el.querySelector('.msg-actions');
+          if(actsEl){
+            var aBtn = document.createElement('a');
+            aBtn.className = 'msg-act';
+            aBtn.href = openedUrl;
+            aBtn.target = openedUrl.startsWith('spotify:') ? '_self' : '_blank';
+            aBtn.rel = 'noopener';
+            aBtn.style.textDecoration = 'none';
+            aBtn.textContent = 'Open Link ↗';
+            actsEl.appendChild(aBtn);
+          }
+        }
         if(drawerOpen) fetchSystem();
         return say(finalReply).then(function(){
           if(finalMeta.shutdown){ offline = true; stopListening(); }
