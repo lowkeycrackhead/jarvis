@@ -1,3 +1,11 @@
 flask
 google-genai
 python-dotenv
+SpeechRecognition; sys_platform == "win32"
+PyAudio; sys_platform == "win32"
+gTTS; sys_platform == "win32"
+pygame; sys_platform == "win32"
+pywhatkit; sys_platform == "win32"
+pyautogui; sys_platform == "win32"
+psutil; sys_platform == "win32"
+Pillow; sys_platform == "win32"
