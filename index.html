@@ -1334,7 +1334,7 @@ input[type="range"] {
     stopMicVisualizer(); idle(); statusEl.textContent = 'Using this computer’s microphone.'; serverLoop();
   }
   function startListening(){
-    if(useServer){ listening = true; idle(); serverLoop(); return; }
+    if(useServer && !isCloud){ listening = true; idle(); serverLoop(); return; }
     if(!SR){ setState('idle', 'Voice input needs Chrome or Edge. Typing still works.'); showToast('Voice needs Chrome/Edge'); return; }
     startMicVisualizer();
     rec = new SR(); rec.lang = 'en-US'; rec.continuous = true; rec.interimResults = true;
@@ -1353,7 +1353,7 @@ input[type="range"] {
     rec.onerror = function(e){
       var msg = null;
       if(e.error === 'not-allowed' || e.error === 'service-not-allowed') msg = 'Microphone blocked. Allow it in the address bar.';
-      else if(e.error === 'network'){ switchToServer(); return; }
+      else if(e.error === 'network'){ if(!isCloud){ switchToServer(); return; } msg = 'Browser speech had a network hiccup—tap the core to retry in Chrome/Edge.'; }
       else if(e.error === 'audio-capture') msg = 'No microphone detected.';
       if(msg){ listening = false; awaiting = false; stopMicVisualizer(); idle(); statusEl.textContent = msg; }
     };
@@ -1584,7 +1584,7 @@ input[type="range"] {
       setConn(r.ok);
       if(d && d.provider) updateAiBtn(d.provider, d.ollama_model, d.ollama_ready);
       if(d && d.persona) updatePersonaUI(d.persona);
-      if(d && d.cloud){ isCloud = true; var bs = document.querySelector('.brand-sub'); if(bs) bs.textContent = d.supabase_ready ? 'CLOUD · SUPABASE' : 'CLOUD HUD'; var tc = $('pcTelemetryCard'); if(tc) tc.style.display = 'none'; var cc = $('pcControlsCard'); if(cc) cc.style.display = 'none'; }
+      if(d && d.cloud){ isCloud = true; var bs = document.querySelector('.brand-sub'); if(bs) bs.textContent = d.supabase_ready ? 'CLOUD · SUPABASE' : 'CLOUD HUD'; var tc = $('pcTelemetryCard'); if(tc) tc.style.display = 'none'; var cc = $('pcControlsCard'); if(cc) cc.style.display = 'none'; useServer = false; updateMicLabel(); var mm = $('micMode'); if(mm) mm.style.display = 'none'; }
     }); }).catch(function(){ setConn(false); });
   }
   var aiModes = ['auto', 'ollama', 'gemini'], aiModeIdx = 0;
