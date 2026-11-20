@@ -90,6 +90,8 @@ def _is_direct_action_command(text: str) -> bool:
 
 
 @app.get("/")
+@app.get("/index.html")
+@app.get("/server.py")
 def index():
     for folder in (BASE, os.getcwd(), os.path.join(BASE, "mega-project--jarvis"), os.path.join(os.getcwd(), "mega-project--jarvis")):
         candidate = os.path.join(folder, "index.html")
