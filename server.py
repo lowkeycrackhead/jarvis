@@ -91,7 +91,12 @@ def _is_direct_action_command(text: str) -> bool:
 
 @app.get("/")
 def index():
-    return send_from_directory(BASE, "index.html")
+    for folder in (BASE, os.getcwd(), os.path.join(BASE, "mega-project--jarvis"), os.path.join(os.getcwd(), "mega-project--jarvis")):
+        candidate = os.path.join(folder, "index.html")
+        if os.path.isfile(candidate):
+            with open(candidate, "r", encoding="utf-8") as fh:
+                return Response(fh.read(), mimetype="text/html")
+    return Response("index.html not found in deployment bundle.", status=404)
 
 
 @app.get("/api/health")

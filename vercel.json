@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "server.py": {
+      "includeFiles": "{index.html,jarvis_extras.py,musiclibrary.py}"
+    }
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/server.py" }
   ]
