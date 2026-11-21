@@ -827,47 +827,84 @@ def _find_spotify_executable() -> str | None:
     return None
 
 
-def _focus_spotify_window(retries: int = 6) -> bool:
-    """Force the Spotify desktop window in front of the browser on Windows (works even when a song title is shown)."""
+def _focus_spotify_window(retries: int = 8) -> bool:
+    """Un-minimize and force the Spotify desktop window to the foreground on Windows via native Win32 ctypes."""
     if os.name != "nt":
         return False
-    ps_script = (
-        "Add-Type @'\n"
-        "using System;\n"
-        "using System.Runtime.InteropServices;\n"
-        "public class WinFocus {\n"
-        "  [DllImport(\"user32.dll\")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);\n"
-        "  [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr hWnd);\n"
-        "  [DllImport(\"user32.dll\")] public static extern bool BringWindowToTop(IntPtr hWnd);\n"
-        "  [DllImport(\"user32.dll\")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);\n"
-        "  public static void ForceFront(IntPtr h) {\n"
-        "    ShowWindowAsync(h, 9);\n"
-        "    keybd_event(0x12, 0, 0, UIntPtr.Zero);\n"
-        "    keybd_event(0x12, 0, 2, UIntPtr.Zero);\n"
-        "    BringWindowToTop(h);\n"
-        "    SetForegroundWindow(h);\n"
-        "  }\n"
-        "}\n"
-        "'@; "
-        "$p = Get-Process -Name Spotify -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1; "
-        "if ($p) { [WinFocus]::ForceFront($p.MainWindowHandle); Write-Output 'OK' }"
-    )
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    SW_RESTORE = 9
+    SW_SHOW = 5
+
+    def _find_spotify_hwnd() -> int:
+        found_hwnd = 0
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def _enum_cb(hwnd, _lparam):
+            nonlocal found_hwnd
+            if not user32.IsWindow(hwnd):
+                return True
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length <= 0:
+                return True
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if not pid.value:
+                return True
+            hproc = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+            if not hproc:
+                return True
+            try:
+                buf = ctypes.create_unicode_buffer(512)
+                size = wintypes.DWORD(len(buf))
+                if kernel32.QueryFullProcessImageNameW(hproc, 0, buf, ctypes.byref(size)):
+                    if buf.value.lower().endswith("\\spotify.exe"):
+                        # Skip tiny/hidden helper windows; pick the main visible/minimized Spotify window
+                        if user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+                            found_hwnd = int(hwnd)
+                            return False
+            finally:
+                kernel32.CloseHandle(hproc)
+            return True
+
+        user32.EnumWindows(_enum_cb, 0)
+        return found_hwnd
+
     for _ in range(max(1, retries)):
         if is_cancelled():
             return False
-        try:
-            res = subprocess.run(
-                ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_script],
-                capture_output=True,
-                text=True,
-                timeout=3.5,
-                check=False,
-            )
-            if "OK" in (res.stdout or ""):
+        hwnd = _find_spotify_hwnd()
+        if hwnd:
+            try:
+                if user32.IsIconic(hwnd):
+                    user32.ShowWindow(hwnd, SW_RESTORE)
+                else:
+                    user32.ShowWindow(hwnd, SW_SHOW)
+                fg_hwnd = user32.GetForegroundWindow()
+                cur_tid = kernel32.GetCurrentThreadId()
+                fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None) if fg_hwnd else 0
+                target_tid = user32.GetWindowThreadProcessId(hwnd, None)
+                if fg_tid and fg_tid != cur_tid:
+                    user32.AttachThreadInput(fg_tid, cur_tid, True)
+                if target_tid and target_tid != cur_tid:
+                    user32.AttachThreadInput(target_tid, cur_tid, True)
+                # Alt key tap unlocks Windows foreground restriction cleanly
+                user32.keybd_event(0x12, 0, 0, 0)
+                user32.keybd_event(0x12, 0, 2, 0)
+                user32.BringWindowToTop(hwnd)
+                user32.SetForegroundWindow(hwnd)
+                if fg_tid and fg_tid != cur_tid:
+                    user32.AttachThreadInput(fg_tid, cur_tid, False)
+                if target_tid and target_tid != cur_tid:
+                    user32.AttachThreadInput(target_tid, cur_tid, False)
                 return True
-        except Exception:
-            pass
-        if _cancellable_sleep(0.4):
+            except Exception:
+                pass
+        if _cancellable_sleep(0.35):
             return False
     return False
 
