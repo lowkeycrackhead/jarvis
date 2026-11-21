@@ -827,52 +827,138 @@ def _find_spotify_executable() -> str | None:
     return None
 
 
-def _focus_spotify_window(retries: int = 8) -> bool:
-    """Un-minimize and force the Spotify desktop window to the foreground on Windows via native Win32 ctypes."""
+def _get_spotify_pids() -> set[int]:
+    """Return all running Spotify.exe PIDs on Windows (uses psutil or tasklist, no 64-bit handle bugs)."""
+    pids: set[int] = set()
+    try:
+        import psutil  # type: ignore[import-not-found]
+        for proc in psutil.process_iter(["pid", "name"]):
+            if (proc.info.get("name") or "").lower() == "spotify.exe":
+                pids.add(int(proc.info["pid"]))
+        if pids:
+            return pids
+    except Exception:
+        pass
+    if os.name == "nt":
+        try:
+            out = subprocess.check_output(
+                ["tasklist", "/FI", "IMAGENAME eq Spotify.exe", "/FO", "CSV", "/NH"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+                timeout=3,
+            )
+            for line in out.splitlines():
+                parts = [c.strip().strip('"') for c in line.split(",")]
+                if len(parts) >= 2 and parts[0].lower() == "spotify.exe" and parts[1].isdigit():
+                    pids.add(int(parts[1]))
+        except Exception:
+            pass
+    return pids
+
+
+def _is_spotify_foreground() -> bool:
+    """Return True ONLY if the currently focused Windows foreground window belongs to Spotify.exe."""
+    if os.name != "nt":
+        return False
+    pids = _get_spotify_pids()
+    if not pids:
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.GetForegroundWindow.argtypes = []
+        user32.GetForegroundWindow.restype = wintypes.HWND
+        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+
+        fg = user32.GetForegroundWindow()
+        if not fg:
+            return False
+        pid = wintypes.DWORD(0)
+        user32.GetWindowThreadProcessId(fg, ctypes.byref(pid))
+        return pid.value in pids
+    except Exception:
+        return False
+
+
+def _focus_spotify_window(retries: int = 10, maximize: bool = True) -> bool:
+    """Un-minimize, maximize, bring Spotify to front (no Alt key!), and verify it owns keyboard focus."""
     if os.name != "nt":
         return False
     import ctypes
     from ctypes import wintypes
 
-    user32 = ctypes.windll.user32
-    kernel32 = ctypes.windll.kernel32
-    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    user32.IsWindow.argtypes = [wintypes.HWND]
+    user32.IsWindow.restype = wintypes.BOOL
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.IsWindowVisible.restype = wintypes.BOOL
+    user32.IsIconic.argtypes = [wintypes.HWND]
+    user32.IsIconic.restype = wintypes.BOOL
+    user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    user32.GetWindowTextLengthW.restype = ctypes.c_int
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.ShowWindow.restype = wintypes.BOOL
+    user32.GetForegroundWindow.argtypes = []
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+    user32.SetForegroundWindow.restype = wintypes.BOOL
+    user32.BringWindowToTop.argtypes = [wintypes.HWND]
+    user32.BringWindowToTop.restype = wintypes.BOOL
+    user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+    user32.SetWindowPos.restype = wintypes.BOOL
+    user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+    user32.GetWindowRect.restype = wintypes.BOOL
+    user32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
+    user32.AttachThreadInput.restype = wintypes.BOOL
+    kernel32.GetCurrentThreadId.argtypes = []
+    kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+
+    SW_SHOWMAXIMIZED = 3
     SW_RESTORE = 9
-    SW_SHOW = 5
+    HWND_TOPMOST = wintypes.HWND(-1)
+    HWND_NOTOPMOST = wintypes.HWND(-2)
+    SWP_NOMOVE = 0x0002
+    SWP_NOSIZE = 0x0001
+    SWP_SHOWWINDOW = 0x0040
 
     def _find_spotify_hwnd() -> int:
-        found_hwnd = 0
+        pids = _get_spotify_pids()
+        if not pids:
+            return 0
+        best_hwnd = 0
+        best_area = -1
 
         @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         def _enum_cb(hwnd, _lparam):
-            nonlocal found_hwnd
+            nonlocal best_hwnd, best_area
             if not user32.IsWindow(hwnd):
                 return True
-            length = user32.GetWindowTextLengthW(hwnd)
-            if length <= 0:
+            if user32.GetWindowTextLengthW(hwnd) <= 0:
                 return True
-            pid = wintypes.DWORD()
+            pid = wintypes.DWORD(0)
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-            if not pid.value:
+            if pid.value not in pids:
                 return True
-            hproc = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
-            if not hproc:
+            if not (user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd)):
                 return True
-            try:
-                buf = ctypes.create_unicode_buffer(512)
-                size = wintypes.DWORD(len(buf))
-                if kernel32.QueryFullProcessImageNameW(hproc, 0, buf, ctypes.byref(size)):
-                    if buf.value.lower().endswith("\\spotify.exe"):
-                        # Skip tiny/hidden helper windows; pick the main visible/minimized Spotify window
-                        if user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
-                            found_hwnd = int(hwnd)
-                            return False
-            finally:
-                kernel32.CloseHandle(hproc)
+            rect = wintypes.RECT()
+            area = 0
+            if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                area = max(0, rect.right - rect.left) * max(0, rect.bottom - rect.top)
+            if area > best_area:
+                best_area = area
+                best_hwnd = int(hwnd)
             return True
 
         user32.EnumWindows(_enum_cb, 0)
-        return found_hwnd
+        return best_hwnd
 
     for _ in range(max(1, retries)):
         if is_cancelled():
@@ -882,31 +968,51 @@ def _focus_spotify_window(retries: int = 8) -> bool:
             try:
                 if user32.IsIconic(hwnd):
                     user32.ShowWindow(hwnd, SW_RESTORE)
-                else:
-                    user32.ShowWindow(hwnd, SW_SHOW)
+                if maximize:
+                    user32.ShowWindow(hwnd, SW_SHOWMAXIMIZED)
+
+                # Pop above browser/VS Code cleanly via TOPMOST -> NOTOPMOST without tapping Alt
+                flags = SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
+                user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
+                user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags)
+
                 fg_hwnd = user32.GetForegroundWindow()
                 cur_tid = kernel32.GetCurrentThreadId()
                 fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None) if fg_hwnd else 0
                 target_tid = user32.GetWindowThreadProcessId(hwnd, None)
+
                 if fg_tid and fg_tid != cur_tid:
                     user32.AttachThreadInput(fg_tid, cur_tid, True)
                 if target_tid and target_tid != cur_tid:
                     user32.AttachThreadInput(target_tid, cur_tid, True)
-                # Alt key tap unlocks Windows foreground restriction cleanly
-                user32.keybd_event(0x12, 0, 0, 0)
-                user32.keybd_event(0x12, 0, 2, 0)
+
                 user32.BringWindowToTop(hwnd)
                 user32.SetForegroundWindow(hwnd)
+
                 if fg_tid and fg_tid != cur_tid:
                     user32.AttachThreadInput(fg_tid, cur_tid, False)
                 if target_tid and target_tid != cur_tid:
                     user32.AttachThreadInput(target_tid, cur_tid, False)
-                return True
-            except Exception:
-                pass
+
+                time.sleep(0.15)
+                if _is_spotify_foreground():
+                    return True
+
+                # Fallback: click safe empty area of Spotify title bar to give it real OS keyboard focus
+                if pyautogui is not None:
+                    rect = wintypes.RECT()
+                    if user32.GetWindowRect(hwnd, ctypes.byref(rect)) and (rect.right - rect.left) > 300:
+                        safe_x = rect.left + (rect.right - rect.left) // 2
+                        safe_y = rect.top + 14
+                        pyautogui.click(safe_x, safe_y)
+                        time.sleep(0.15)
+                        if _is_spotify_foreground():
+                            return True
+            except Exception as err:
+                print(f"Spotify focus warning: {err}")
         if _cancellable_sleep(0.35):
             return False
-    return False
+    return _is_spotify_foreground()
 
 
 def _launch_spotify_app(uri: str | None = None) -> bool:
@@ -915,52 +1021,45 @@ def _launch_spotify_app(uri: str | None = None) -> bool:
         return True
 
     launched = False
-    exe_path = _find_spotify_executable()
-    if exe_path:
+    was_running = _is_spotify_running()
+
+    if was_running:
         try:
-            if exe_path.lower().endswith(".exe"):
-                args = [exe_path] + ([f"--uri={uri}"] if uri else [])
-                subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            else:
-                startfile_fn = getattr(os, "startfile", None)
-                if callable(startfile_fn):
-                    startfile_fn(exe_path)
-            launched = True
+            startfile_fn = getattr(os, "startfile", None)
+            if callable(startfile_fn):
+                startfile_fn(uri or "spotify:")
+                launched = True
         except Exception:
             pass
 
     if not launched:
+        exe_path = _find_spotify_executable()
+        if exe_path:
+            try:
+                if exe_path.lower().endswith(".exe"):
+                    args = [exe_path] + ([f"--uri={uri}"] if uri else [])
+                    subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                else:
+                    startfile_fn = getattr(os, "startfile", None)
+                    if callable(startfile_fn):
+                        startfile_fn(exe_path)
+                launched = True
+            except Exception:
+                pass
+
+    if not launched:
         try:
-            ps_cmd = (
-                "$app = Get-StartApps | Where-Object { $_.Name -like '*Spotify*' } | Select-Object -First 1; "
-                "if ($app) { Start-Process ('shell:AppsFolder\\' + $app.AppID) }"
-            )
-            subprocess.run(
-                ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_cmd],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=4,
-            )
+            startfile_fn = getattr(os, "startfile", None)
+            if callable(startfile_fn):
+                startfile_fn(uri or "spotify:")
+                launched = True
         except Exception:
             pass
 
-    if _cancellable_sleep(1.0):
+    if _cancellable_sleep(0.8 if was_running else 2.2):
         return False
 
-    if not _is_spotify_running() and pyautogui is not None:
-        try:
-            pyautogui.press("win")
-            if _cancellable_sleep(0.6):
-                return False
-            pyautogui.write("spotify", interval=0.05)
-            if _cancellable_sleep(0.7):
-                return False
-            pyautogui.press("enter")
-            launched = True
-        except Exception:
-            pass
-
-    _focus_spotify_window()
+    _focus_spotify_window(retries=10, maximize=True)
     return launched
 
 
@@ -984,27 +1083,40 @@ def play_on_spotify(song_query: str) -> None:
     _launch_spotify_app()
 
     if pyautogui is not None:
-        if _cancellable_sleep(1.8 if was_running else 4.5):
+        if _cancellable_sleep(0.8 if was_running else 3.2):
             return
-        _focus_spotify_window()
+        focused = _focus_spotify_window(retries=8, maximize=True)
         if _cancellable_sleep(0.35):
             return
-        try:
-            pyautogui.hotkey("ctrl", "k")
-            if _cancellable_sleep(0.5):
-                return
-            pyautogui.hotkey("ctrl", "a")
-            time.sleep(0.1)
-            pyautogui.press("backspace")
-            time.sleep(0.1)
-            pyautogui.write(song, interval=0.03)
-            if _cancellable_sleep(1.6):
-                return
-            pyautogui.hotkey("shift", "enter")
-            time.sleep(0.25)
-            pyautogui.press("esc")
-        except Exception:
-            pass
+        # HARD SAFETY GUARD: only send Ctrl+K / Shift+Enter if Spotify is confirmed as the active foreground window
+        if focused and _is_spotify_foreground():
+            try:
+                pyautogui.press("esc")
+                time.sleep(0.15)
+                pyautogui.hotkey("ctrl", "k")
+                if _cancellable_sleep(0.6):
+                    return
+                pyautogui.hotkey("ctrl", "a")
+                time.sleep(0.1)
+                pyautogui.press("backspace")
+                time.sleep(0.1)
+                pyautogui.write(song, interval=0.03)
+                if _cancellable_sleep(1.6):
+                    return
+                if _is_spotify_foreground():
+                    pyautogui.hotkey("shift", "enter")
+                    time.sleep(0.25)
+                    pyautogui.press("esc")
+            except Exception as err:
+                print(f"Spotify automation warning: {err}")
+        else:
+            # Safe fallback: open Spotify directly to the search page without sending stray keystrokes
+            try:
+                startfile_fn = getattr(os, "startfile", None)
+                if callable(startfile_fn):
+                    startfile_fn(f"spotify:search:{urllib.parse.quote(song)}")
+            except Exception:
+                pass
 
     music_playing = True
     spotify_playing = True
