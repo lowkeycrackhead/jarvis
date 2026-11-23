@@ -13,7 +13,7 @@ import time
 import urllib.parse
 import urllib.request
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 IS_CLOUD = bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
@@ -766,8 +766,30 @@ def is_datetime_query(command: str) -> bool:
     return any(re.search(p, cmd) for p in patterns)
 
 
-def current_datetime_response(command: str) -> str:
-    now = datetime.now()
+def _now_for_user(tz_name: str | None = None, tz_offset_min: int | None = None) -> datetime:
+    """Return current datetime in the user's browser timezone (falls back to system local time)."""
+    if tz_name:
+        try:
+            from zoneinfo import ZoneInfo
+            return datetime.now(ZoneInfo(str(tz_name).strip()))
+        except Exception:
+            pass
+    if tz_offset_min is not None:
+        try:
+            # JS Date.getTimezoneOffset() is minutes behind UTC (e.g. -330 for IST UTC+05:30)
+            offset = timezone(timedelta(minutes=-int(tz_offset_min)))
+            return datetime.now(timezone.utc).astimezone(offset)
+        except Exception:
+            pass
+    return datetime.now()
+
+
+def current_datetime_response(
+    command: str,
+    tz_name: str | None = None,
+    tz_offset_min: int | None = None,
+) -> str:
+    now = _now_for_user(tz_name=tz_name, tz_offset_min=tz_offset_min)
     cmd = command.lower()
     if "time" in cmd and any(w in cmd for w in ("date", "day", "today")):
         return f"It is {now.strftime('%I:%M %p')}, {now.strftime('%A, %B %d, %Y')}, Sir."
@@ -1139,7 +1161,7 @@ def _extract_spotify_song(raw_command: str) -> str | None:
     return None
 
 
-def processcommand(c: str) -> bool:
+def processcommand(c: str, tz_name: str | None = None, tz_offset_min: int | None = None) -> bool:
     global music_playing, spotify_playing
     clear_cancel()
     if not c or not str(c).strip():
@@ -1201,7 +1223,7 @@ def processcommand(c: str) -> bool:
             speak("No music is currently playing, Sir.")
         return False
     if is_datetime_query(command):
-        speak(current_datetime_response(command))
+        speak(current_datetime_response(command, tz_name=tz_name, tz_offset_min=tz_offset_min))
         return False
 
     # Persona & memory voice commands

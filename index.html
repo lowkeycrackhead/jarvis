@@ -1952,7 +1952,7 @@ input[type="range"] { flex: 1; accent-color: var(--blue); height: 28px; cursor: 
     return fetch('/api/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text }),
+      body: JSON.stringify({ text: text, tz: (Intl && Intl.DateTimeFormat ? Intl.DateTimeFormat().resolvedOptions().timeZone : ''), tz_offset: new Date().getTimezoneOffset() }),
       signal: currentAbort.signal
     })
       .then(function(resp){

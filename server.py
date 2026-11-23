@@ -273,7 +273,10 @@ def vision_endpoint():
 @app.post("/api/stream")
 def stream_command():
     """Stream AI replies word-by-word via Server-Sent Events (SSE), or run direct actions."""
-    text = (request.get_json(silent=True) or {}).get("text", "").strip()
+    body = request.get_json(silent=True) or {}
+    text = str(body.get("text", "")).strip()
+    tz_name = body.get("tz") or None
+    tz_offset = body.get("tz_offset")
     if not text:
         return jsonify(error="Empty command"), 400
 
@@ -296,7 +299,7 @@ def stream_command():
                     full_parts.append(c_reply or "Opening, Sir.")
                     yield f"data: {json.dumps({'token': c_reply, 'open_url': c_url})}\n\n"
                 elif _is_direct_action_command(text):
-                    shutdown = bool(main.processcommand(text))
+                    shutdown = bool(main.processcommand(text, tz_name=tz_name, tz_offset_min=tz_offset))
                     if not main.is_cancelled():
                         out = list(replies) or ["Done, Sir."]
                         joined = "\n".join(out)
@@ -329,7 +332,10 @@ def stream_command():
 
 @app.post("/api/command")
 def command():
-    text = (request.get_json(silent=True) or {}).get("text", "").strip()
+    body = request.get_json(silent=True) or {}
+    text = str(body.get("text", "")).strip()
+    tz_name = body.get("tz") or None
+    tz_offset = body.get("tz_offset")
     if not text:
         return jsonify(replies=[], shutdown=False, cancelled=False)
 
@@ -345,7 +351,7 @@ def command():
             if low in {"thank you", "thanks", "thank you jarvis", "thanks jarvis"}:
                 replies.append("You are welcome, Sir.")
             else:
-                shutdown = bool(main.processcommand(text))
+                shutdown = bool(main.processcommand(text, tz_name=tz_name, tz_offset_min=tz_offset))
             cancelled = bool(main.is_cancelled())
         except Exception as error:
             return jsonify(error=str(error)), 500
