@@ -277,6 +277,7 @@ def stream_command():
     text = str(body.get("text", "")).strip()
     tz_name = body.get("tz") or None
     tz_offset = body.get("tz_offset")
+    main.set_request_city(request.headers.get("x-vercel-ip-city", ""))
     if not text:
         return jsonify(error="Empty command"), 400
 
@@ -336,6 +337,7 @@ def command():
     text = str(body.get("text", "")).strip()
     tz_name = body.get("tz") or None
     tz_offset = body.get("tz_offset")
+    main.set_request_city(request.headers.get("x-vercel-ip-city", ""))
     if not text:
         return jsonify(replies=[], shutdown=False, cancelled=False)
 

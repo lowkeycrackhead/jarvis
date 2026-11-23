@@ -499,18 +499,34 @@ def speak(text: str) -> None:
                     time.sleep(0.08)
 
 
+_current_request_city: str = ""
+
+
+def set_request_city(city: str | None) -> None:
+    global _current_request_city
+    _current_request_city = urllib.parse.unquote(str(city or "")).strip()
+
+
 def _weather_fallback(prompt: str) -> str | None:
     if not any(w in prompt.lower() for w in ("weather", "temperature", "forecast")):
         return None
+    city = ""
+    m = re.search(r"\b(?:in|at|for)\s+([a-zA-Z][a-zA-Z\s.-]{1,40}?)(?:\s+(?:today|now|right now|please|sir))?[?.!,]*$", prompt.strip(), flags=re.IGNORECASE)
+    if m:
+        city = m.group(1).strip()
+    elif _current_request_city:
+        city = _current_request_city
+    loc = urllib.parse.quote(city) if city else ""
     try:
         req = urllib.request.Request(
-            "https://wttr.in/?format=%C,+%t+(feels+like+%f),+humidity+%h",
+            f"https://wttr.in/{loc}?m&format=%C,+%t+(feels+like+%f),+humidity+%h",
             headers={"User-Agent": "curl/8.0"},
         )
         with urllib.request.urlopen(req, timeout=3.5) as resp:
             info = resp.read().decode("utf-8", errors="ignore").strip()
             if info and "<" not in info and "Unknown" not in info:
-                return f"The weather right now is {info}, Sir."
+                where = f" in {city}" if city else ""
+                return f"The weather{where} right now is {info}, Sir."
     except Exception:
         pass
     return None
