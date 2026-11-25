@@ -8,6 +8,7 @@ Run:
     python server.py
 Your browser opens at http://127.0.0.1:5000
 """
+from __future__ import annotations
 import base64
 import json
 import os

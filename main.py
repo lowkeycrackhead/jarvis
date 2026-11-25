@@ -1,4 +1,5 @@
 # pyright: reportMissingImports=false, reportMissingModuleSource=false, reportOptionalMemberAccess=false, reportOptionalCall=false, reportAttributeAccessIssue=false, reportGeneralTypeIssues=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import glob
 import importlib
@@ -646,7 +647,7 @@ def _fallback_ai_answer(prompt: str) -> str:
 
 
 def _ask_gemini(prompt: str) -> str | None:
-    global _active_chat, _gemini_key_rejected, _gemini_checked_key
+    global _active_chat, _gemini_key_rejected, _gemini_checked_key, _gemini_last_error
 
     if _active_chat is not None:
         try:
@@ -679,7 +680,6 @@ def _ask_gemini(prompt: str) -> str | None:
                         _active_chat = chat_session
                         return reply
                 except Exception as err:
-                    global _gemini_last_error
                     err_s = str(err)
                     _gemini_last_error = f"{model_name}: {err_s[:180]}"
                     print(f"Gemini warning ({model_name}): {err_s[:180]}")
