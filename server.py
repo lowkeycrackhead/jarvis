@@ -115,6 +115,8 @@ def health():
         persona=ai.get("persona", "butler"),
         cloud=bool(getattr(main, "IS_CLOUD", False)),
         supabase_ready=extras.is_supabase_connected(),
+        gemini_configured=bool(main._get_api_key()),
+        gemini_error=main.get_gemini_last_error(),
     )
 
 

@@ -65,9 +65,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def _load_env_files() -> None:
+    if IS_CLOUD:
+        return  # Always use Vercel dashboard Environment Variables in cloud mode
     for env_path in (
-        os.path.join(BASE_DIR, ".env"),
         os.path.join(os.path.dirname(BASE_DIR), ".env"),
+        os.path.join(BASE_DIR, ".env"),
     ):
         if os.path.isfile(env_path):
             try:
@@ -83,7 +85,7 @@ def _load_env_files() -> None:
                         k, v = line.split("=", 1)
                         k = k.strip()
                         v = v.strip().strip('"').strip("'")
-                        if k and v:
+                        if k and v and "put_your_" not in v.lower():
                             os.environ[k] = v
             except Exception:
                 pass
@@ -119,12 +121,10 @@ CANDIDATE_MODELS: list[str] = list(
         m
         for m in [
             os.getenv("GEMINI_MODEL", "").strip(),
-            "gemini-3.5-flash-lite",
             "gemini-2.5-flash-lite",
-            "gemini-3.6-flash",
             "gemini-2.5-flash",
-            "gemini-3.7-flash",
-            "gemini-3.8-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-2.0-flash",
         ]
         if m
     )
@@ -239,10 +239,19 @@ def _ensure_mixer() -> bool:
 _ensure_mixer()
 
 
+_gemini_last_error: str = ""
+
+
+def get_gemini_last_error() -> str:
+    return _gemini_last_error
+
+
 def _get_api_key() -> str:
     _load_env_files()
     raw = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
     clean = raw.strip().strip('"').strip("'")
+    if "put_your_" in clean.lower():
+        return ""
     if clean:
         os.environ["GEMINI_API_KEY"] = clean
     return clean
@@ -670,7 +679,10 @@ def _ask_gemini(prompt: str) -> str | None:
                         _active_chat = chat_session
                         return reply
                 except Exception as err:
+                    global _gemini_last_error
                     err_s = str(err)
+                    _gemini_last_error = f"{model_name}: {err_s[:180]}"
+                    print(f"Gemini warning ({model_name}): {err_s[:180]}")
                     if any(code in err_s for code in ("401", "UNAUTHENTICATED", "403")):
                         break
                     auth_failed_all = False
