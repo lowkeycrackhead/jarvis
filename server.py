@@ -293,6 +293,7 @@ def stream_command():
                 low = text.lower()
                 if low in {"thank you", "thanks", "thank you jarvis", "thanks jarvis"}:
                     msg = "You are welcome, Sir."
+                    shutdown = True
                     full_parts.append(msg)
                     yield f"data: {json.dumps({'token': msg})}\n\n"
                 elif getattr(main, "IS_CLOUD", False) and _cloud_web_url(text)[1]:
@@ -352,6 +353,7 @@ def command():
         try:
             if low in {"thank you", "thanks", "thank you jarvis", "thanks jarvis"}:
                 replies.append("You are welcome, Sir.")
+                shutdown = True
             else:
                 shutdown = bool(main.processcommand(text, tz_name=tz_name, tz_offset_min=tz_offset))
             cancelled = bool(main.is_cancelled())

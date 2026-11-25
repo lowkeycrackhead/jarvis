@@ -1430,34 +1430,34 @@ if __name__ == "__main__":
     speak("Initializing Jarvis....")
     r = sr.Recognizer()
     calibrated = False
+    active = False
     while True:
-        print("recognizing")
-        command = ""
+        print("jarvis active — listening..." if active else "standby — say 'Jarvis' to activate...")
         try:
             with sr.Microphone() as source:
                 if not calibrated:
                     r.adjust_for_ambient_noise(source, duration=0.5)
                     calibrated = True
-                print("listening...")
-                audio = r.listen(source, timeout=4, phrase_time_limit=6)
+                audio = r.listen(source, timeout=6 if active else 4, phrase_time_limit=12 if active else 6)
             word = r.recognize_google(audio)
             print(repr(word))
-            match = WAKE_WORD_PATTERN.search(word)
-            if match:
+            if not active:
+                match = WAKE_WORD_PATTERN.search(word)
+                if not match:
+                    continue
+                active = True
                 inline_cmd = word[match.end() :].lstrip(" ,.!?:;-").strip()
-                if inline_cmd:
-                    command = inline_cmd
-                else:
-                    speak("Yes Sir")
-                    with sr.Microphone() as source:
-                        print("jarvis active")
-                        audio = r.listen(source, timeout=6, phrase_time_limit=12)
-                    command = r.recognize_google(audio)
-                if "thank you" in command.lower() or "thanks" in command.lower():
-                    speak("You are welcome, Sir.")
-                    break
-                if processcommand(command):
-                    break
+                if not inline_cmd:
+                    speak("Yes Sir, I am active.")
+                    continue
+                command = inline_cmd
+            else:
+                command = word.strip()
+
+            if not command:
+                continue
+            if processcommand(command):
+                active = False
         except (sr.WaitTimeoutError, sr.UnknownValueError):
             continue
         except KeyboardInterrupt:

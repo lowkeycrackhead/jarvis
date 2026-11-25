@@ -1402,7 +1402,7 @@ input[type="range"] { flex: 1; accent-color: var(--blue); height: 28px; cursor: 
     updateStopControls();
     if(offline) return setState('idle', 'Jarvis shut down. Send any command to wake it.');
     if(!listening) return setState('idle', 'Tap the core to listen · Hold for instant talk');
-    if(awaiting) return setState('awake', 'I’m listening, Sir…');
+    if(awaiting) return setState('awake', 'Active — speak anytime (say “stop” or “quit” to deactivate)');
     setState('listening', 'Say “Jarvis” (or hold core / press Space)');
   }
   function showHeard(t, isFinal){
@@ -1767,8 +1767,7 @@ input[type="range"] { flex: 1; accent-color: var(--blue); height: 28px; cursor: 
   function toggleListening(){ sfxTap(); listening ? stopListening() : startListening(); }
   function armCommand(){
     awaiting = true; clearTimeout(awaitTimer); sfxWake(); energyBoost = 1.25;
-    setState('awake', 'I’m listening, Sir…');
-    awaitTimer = setTimeout(function(){ awaiting = false; idle(); }, 12000);
+    setState('awake', 'Active — speak anytime (say “stop” or “quit” to deactivate)');
   }
   function talkNow(){
     if(!SR && !useServer){ setState('idle', 'Voice input needs Chrome or Edge.'); return; }
@@ -1777,10 +1776,11 @@ input[type="range"] { flex: 1; accent-color: var(--blue); height: 28px; cursor: 
   }
   function heard(text){
     if(!text || busy || speaking) return;
-    if(awaiting){ awaiting = false; clearTimeout(awaitTimer); return send(text); }
+    if(awaiting){ return send(text); }
     var m = text.match(WAKE); if(!m) return;
+    awaiting = true;
     var rest = text.slice(m.index + m[0].length).replace(/^[\s,.!?:;-]+/, '');
-    if(rest) return send(rest);
+    if(rest){ sfxWake(); energyBoost = 1.25; return send(rest); }
     armCommand(); say('Yes sir.');
   }
 
@@ -2015,7 +2015,7 @@ input[type="range"] { flex: 1; accent-color: var(--blue); height: 28px; cursor: 
         }
         if(drawerOpen) fetchSystem();
         return say(finalReply).then(function(){
-          if(finalMeta.shutdown){ offline = true; stopListening(); }
+          if(finalMeta.shutdown){ awaiting = false; showToast('Jarvis deactivated — say "Jarvis" to wake'); idle(); }
         });
       })
       .catch(function(err){
